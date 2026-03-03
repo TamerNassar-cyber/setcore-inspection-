@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, Image, KeyboardAvoidingView,
-  Platform, ScrollView, Alert,
+  View, Text, StyleSheet, KeyboardAvoidingView,
+  Platform, ScrollView, Alert, TouchableOpacity, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
-import Button from '../../components/shared/Button';
-import Input from '../../components/shared/Input';
+import SetcoreLogo from '../../components/shared/SetcoreLogo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,7 +27,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // Fetch user role and redirect
     const { data: profile } = await supabase
       .from('users')
       .select('role')
@@ -44,61 +42,166 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>SETCORE</Text>
-            <Text style={styles.logoSub}>INSPECTION</Text>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+
+        {/* Brand Header */}
+        <View style={styles.brand}>
+          <SetcoreLogo width={200} color="white" />
+          <View style={styles.divider} />
+          <Text style={styles.tagline}>FIELD INSPECTION SYSTEM</Text>
+        </View>
+
+        {/* Login Card */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Sign In</Text>
+          <Text style={styles.cardSubtitle}>Access your inspection dashboard</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="inspector@setcore.com"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
           </View>
-          <Text style={styles.tagline}>Field Inspection System</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>PASSWORD</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••••"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.signInBtn, loading && styles.signInBtnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.signInText}>{loading ? 'SIGNING IN…' : 'SIGN IN'}</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.title}>Sign In</Text>
-
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="inspector@setcore.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-          />
-
-          <Button label="Sign In" onPress={handleLogin} loading={loading} fullWidth />
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Setcore Petroleum Services</Text>
+          <Text style={styles.footerSub}>© {new Date().getFullYear()} · All rights reserved</Text>
         </View>
 
-        <Text style={styles.footer}>
-          Setcore Petroleum Services{'\n'}© {new Date().getFullYear()} All rights reserved
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.black },
-  container: { flexGrow: 1, padding: 24, justifyContent: 'space-between' },
-  header: { alignItems: 'center', paddingTop: 80, paddingBottom: 48 },
-  logo: { alignItems: 'center', marginBottom: 12 },
-  logoText: { fontSize: 36, fontWeight: '900', color: Colors.white, letterSpacing: 4 },
-  logoSub: { fontSize: 14, fontWeight: '600', color: Colors.primary, letterSpacing: 6, marginTop: -4 },
-  tagline: { fontSize: 13, color: 'rgba(255,255,255,0.4)', letterSpacing: 1 },
-  form: {
+  root: { flex: 1, backgroundColor: '#0A0A0A' },
+  scroll: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
+
+  brand: {
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 100 : 80,
+    paddingBottom: 48,
+  },
+  divider: {
+    width: 40,
+    height: 3,
+    backgroundColor: Colors.primary,
+    marginTop: 20,
+    marginBottom: 14,
+    borderRadius: 2,
+  },
+  tagline: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 3,
+  },
+
+  card: {
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.black, marginBottom: 24 },
-  footer: { textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 11, paddingVertical: 24, lineHeight: 18 },
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.black,
+    marginBottom: 6,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 28,
+  },
+
+  field: { marginBottom: 20 },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: Colors.black,
+    backgroundColor: '#FAFAFA',
+  },
+
+  signInBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  signInBtnDisabled: { opacity: 0.6 },
+  signInText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  footerText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  footerSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.18)',
+    marginTop: 4,
+  },
 });

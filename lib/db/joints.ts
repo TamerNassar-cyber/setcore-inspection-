@@ -3,6 +3,7 @@ import type { Joint, Defect } from '../../types';
 
 export async function saveJoint(joint: Joint): Promise<void> {
   const db = await getDb();
+  if (!db) return;
   await db.runAsync(
     `INSERT OR REPLACE INTO joints
       (id, run_id, joint_number, serial_number, grade, weight, od, length, result, notes, inspected_at, synced)
@@ -17,15 +18,17 @@ export async function saveJoint(joint: Joint): Promise<void> {
 
 export async function getJointsByRun(runId: string): Promise<Joint[]> {
   const db = await getDb();
+  if (!db) return [];
   const rows = await db.getAllAsync<any>(
     'SELECT * FROM joints WHERE run_id = ? ORDER BY joint_number ASC',
     [runId]
   );
-  return rows.map(r => ({ ...r, synced: !!r.synced }));
+  return rows.map((r: any) => ({ ...r, synced: !!r.synced }));
 }
 
 export async function saveDefect(defect: Defect): Promise<void> {
   const db = await getDb();
+  if (!db) return;
   await db.runAsync(
     `INSERT OR REPLACE INTO defects
       (id, joint_id, defect_type, location, severity, description, photo_url, photo_local_uri, standard_reference, synced)
@@ -40,15 +43,14 @@ export async function saveDefect(defect: Defect): Promise<void> {
 
 export async function getDefectsByJoint(jointId: string): Promise<Defect[]> {
   const db = await getDb();
-  const rows = await db.getAllAsync<any>(
-    'SELECT * FROM defects WHERE joint_id = ?',
-    [jointId]
-  );
-  return rows.map(r => ({ ...r, synced: !!r.synced }));
+  if (!db) return [];
+  const rows = await db.getAllAsync<any>('SELECT * FROM defects WHERE joint_id = ?', [jointId]);
+  return rows.map((r: any) => ({ ...r, synced: !!r.synced }));
 }
 
 export async function getTally(runId: string) {
   const db = await getDb();
+  if (!db) return { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 };
   const row = await db.getFirstAsync<any>(
     `SELECT
       COUNT(*) as total_joints,
@@ -71,11 +73,13 @@ export async function getTally(runId: string) {
 
 export async function getUnsyncedJoints(): Promise<Joint[]> {
   const db = await getDb();
+  if (!db) return [];
   const rows = await db.getAllAsync<any>('SELECT * FROM joints WHERE synced = 0');
-  return rows.map(r => ({ ...r, synced: false }));
+  return rows.map((r: any) => ({ ...r, synced: false }));
 }
 
 export async function markJointSynced(id: string): Promise<void> {
   const db = await getDb();
+  if (!db) return;
   await db.runAsync('UPDATE joints SET synced = 1 WHERE id = ?', [id]);
 }

@@ -5,15 +5,16 @@ import { Colors } from '../../constants/colors';
 interface Props extends TextInputProps {
   label: string;
   error?: string;
+  dark?: boolean;
 }
 
-export default function Input({ label, error, style, ...props }: Props) {
+export default function Input({ label, error, style, dark, ...props }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         style={[styles.input, error ? styles.inputError : null, style as any]}
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor="#666"
         {...props}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -23,17 +24,24 @@ export default function Input({ label, error, style, ...props }: Props) {
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#555',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   input: {
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: 8,
+    borderColor: '#2A2A2A',
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 15,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.white,
+    color: Colors.white,
+    backgroundColor: '#1A1A1A',
   },
-  inputError: { borderColor: Colors.fail },
-  error: { fontSize: 12, color: Colors.fail, marginTop: 4 },
+  inputError: { borderColor: Colors.primary },
+  error: { fontSize: 12, color: Colors.primary, marginTop: 4 },
 });
