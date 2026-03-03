@@ -1,9 +1,10 @@
 {
   "expo": {
-    "name": "setcore-inspection",
+    "name": "Setcore Inspection",
     "slug": "setcore-inspection",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "setcore-inspection",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
@@ -25,6 +26,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-barcode-scanner"
+    ]
   }
 }
