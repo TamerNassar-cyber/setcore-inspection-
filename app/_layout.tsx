@@ -18,12 +18,8 @@ export default function RootLayout() {
           .eq('id', session.user.id)
           .single();
 
-        const role = profile?.role ?? 'inspector';
-        if (role === 'inspector') router.replace('/(inspector)/jobs');
-        else if (role === 'supervisor') router.replace('/(supervisor)');
-        else if (role === 'management') router.replace('/(management)');
-        else if (role === 'client') router.replace('/(client)');
-        else router.replace('/(inspector)/jobs');
+        // All roles use the inspector view until dedicated dashboards are built in Phase 3
+        router.replace('/(inspector)/jobs');
       }
     });
   }, []);
