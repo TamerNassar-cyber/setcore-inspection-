@@ -40,7 +40,10 @@ export default function LoginScreen() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: false },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: undefined, // force numeric OTP code, not magic link
+      },
     });
     setLoading(false);
     if (error) {
@@ -59,7 +62,7 @@ export default function LoginScreen() {
     const { data, error } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: otp.trim(),
-      type: 'email',
+      type: 'magiclink',
     });
     setLoading(false);
     if (error) {
