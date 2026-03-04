@@ -52,7 +52,7 @@ export default function LoginScreen() {
 
   async function handleVerifyOtp() {
     if (!otp || otp.length < 6) {
-      Alert.alert('Error', 'Please enter the 6-digit code from your email.');
+      Alert.alert('Error', 'Please enter the full code from your email.');
       return;
     }
     setLoading(true);
@@ -197,7 +197,7 @@ export default function LoginScreen() {
                 placeholder="000000"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={8}
                 autoComplete="one-time-code"
               />
             </View>
