@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, RefreshControl, StatusBar,
+  SafeAreaView, RefreshControl, StatusBar, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -39,6 +39,7 @@ export default function JobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
 
   async function loadJobs() {
     const local = await getJobs();
@@ -60,6 +61,18 @@ export default function JobsScreen() {
   }
 
   useEffect(() => { loadJobs(); }, []);
+
+  const q = search.toLowerCase();
+  const filtered = q
+    ? jobs.filter(j =>
+        j.job_number.toLowerCase().includes(q) ||
+        j.client.toLowerCase().includes(q) ||
+        j.rig.toLowerCase().includes(q) ||
+        j.well.toLowerCase().includes(q) ||
+        (j.field ?? '').toLowerCase().includes(q) ||
+        j.country.toLowerCase().includes(q)
+      )
+    : jobs;
 
   function renderJob({ item }: { item: Job }) {
     const s = statusConfig(item.status);
@@ -121,13 +134,25 @@ export default function JobsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search jobs, clients, wells…"
+          placeholderTextColor="#444"
+          clearButtonMode="while-editing"
+        />
+      </View>
+
       <View style={styles.subHeader}>
         <Text style={styles.pageTitle}>My Jobs</Text>
-        <Text style={styles.jobCount}>{jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}</Text>
+        <Text style={styles.jobCount}>{filtered.length} {filtered.length === 1 ? 'job' : 'jobs'}</Text>
       </View>
 
       <FlatList
-        data={jobs}
+        data={filtered}
         renderItem={renderJob}
         keyExtractor={j => j.id}
         contentContainerStyle={styles.list}
@@ -147,8 +172,8 @@ export default function JobsScreen() {
                 <Path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" stroke="#333" strokeWidth={1.5} />
               </Svg>
             </View>
-            <Text style={styles.emptyTitle}>No jobs yet</Text>
-            <Text style={styles.emptySubtitle}>Tap + New Job to create your first inspection job</Text>
+            <Text style={styles.emptyTitle}>{search ? 'No matches' : 'No jobs yet'}</Text>
+            <Text style={styles.emptySubtitle}>{search ? `No jobs found for "${search}"` : 'Tap + New Job to create your first inspection job'}</Text>
           </View>
         }
       />
@@ -168,6 +193,24 @@ function Tag({ icon, label }: { icon: string; label: string }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },
+
+  searchContainer: {
+    backgroundColor: '#0A0A0A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1A1A',
+  },
+  searchInput: {
+    backgroundColor: '#161616',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.white,
+  },
 
   header: {
     backgroundColor: '#0A0A0A',
