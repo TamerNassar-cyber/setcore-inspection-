@@ -12,7 +12,7 @@ import { getJob, saveRun, getRun } from '../../lib/db/jobs';
 import { saveJoint, getJointsByRun, getTally } from '../../lib/db/joints';
 import type { Job, InspectionRun, Joint } from '../../types';
 import type { InspectionResult } from '../../constants/standards';
-import { DEFECT_TYPES } from '../../constants/standards';
+import { DEFECT_TYPES, DEFECT_CRITERIA } from '../../constants/standards';
 import type { DefectType } from '../../constants/standards';
 import { format } from 'date-fns';
 import 'react-native-get-random-values';
@@ -531,6 +531,29 @@ export default function InspectionScreen() {
               ))}
             </View>
 
+            {/* Acceptance Criteria Reference Card */}
+            {defectType !== '' && DEFECT_CRITERIA[defectType as DefectType] && (() => {
+              const crit = DEFECT_CRITERIA[defectType as DefectType];
+              return (
+                <View style={styles.criteriaCard}>
+                  <Text style={styles.criteriaTitle}>Acceptance Criteria</Text>
+                  <View style={styles.criteriaSection}>
+                    <Text style={styles.criteriaPassLabel}>PASS</Text>
+                    {crit.pass.map((c, i) => <Text key={i} style={styles.criteriaPassText}>• {c}</Text>)}
+                  </View>
+                  <View style={styles.criteriaSection}>
+                    <Text style={styles.criteriaFailLabel}>FAIL</Text>
+                    {crit.fail.map((c, i) => <Text key={i} style={styles.criteriaFailText}>• {c}</Text>)}
+                  </View>
+                  <View style={styles.criteriaSection}>
+                    <Text style={styles.criteriaRejectLabel}>REJECT</Text>
+                    {crit.reject.map((c, i) => <Text key={i} style={styles.criteriaRejectText}>• {c}</Text>)}
+                  </View>
+                  {crit.note && <Text style={styles.criteriaNote}>{crit.note}</Text>}
+                </View>
+              );
+            })()}
+
             {/* Location */}
             <Text style={[styles.defectSectionLabel, { marginTop: 22 }]}>LOCATION ON JOINT</Text>
             <View style={styles.locationRow}>
@@ -774,6 +797,20 @@ const styles = StyleSheet.create({
   defectSectionLabel: {
     fontSize: 11, fontWeight: '700', color: '#555', letterSpacing: 1.2, marginBottom: 12,
   },
+
+  criteriaCard: {
+    backgroundColor: '#0F1A10', borderRadius: 10, padding: 14,
+    marginTop: 12, borderWidth: 1, borderColor: '#1A2A1A',
+  },
+  criteriaTitle: { fontSize: 11, fontWeight: '800', color: '#555', letterSpacing: 1, marginBottom: 10 },
+  criteriaSection: { marginBottom: 8 },
+  criteriaPassLabel: { fontSize: 10, fontWeight: '800', color: '#22C55E', letterSpacing: 1, marginBottom: 3 },
+  criteriaPassText: { fontSize: 11, color: '#3A7D3A', lineHeight: 16, marginLeft: 4 },
+  criteriaFailLabel: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1, marginBottom: 3 },
+  criteriaFailText: { fontSize: 11, color: '#7D4A1A', lineHeight: 16, marginLeft: 4 },
+  criteriaRejectLabel: { fontSize: 10, fontWeight: '800', color: '#DC2626', letterSpacing: 1, marginBottom: 3 },
+  criteriaRejectText: { fontSize: 11, color: '#7D2020', lineHeight: 16, marginLeft: 4 },
+  criteriaNote: { fontSize: 10, color: '#444', fontStyle: 'italic', marginTop: 6, lineHeight: 15 },
 
   defectTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   defectTypeChip: {
