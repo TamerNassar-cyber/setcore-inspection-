@@ -72,6 +72,8 @@ export default function InspectorLayout() {
           tabBarIcon: ({ color }) => <BriefcaseIcon color={color} />,
         }}
       />
+      <Tabs.Screen name="job-detail" options={{ href: null }} />
+      <Tabs.Screen name="new-job" options={{ href: null }} />
       <Tabs.Screen
         name="inspection"
         options={{

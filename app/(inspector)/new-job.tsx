@@ -60,7 +60,8 @@ export default function NewJobScreen() {
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     const now = new Date().toISOString();
     const job: Job = {
       id: uuidv4(),

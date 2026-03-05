@@ -18,8 +18,13 @@ export default function RootLayout() {
           .eq('id', session.user.id)
           .single();
 
-        // All roles use the inspector view until dedicated dashboards are built in Phase 3
-        router.replace('/(inspector)/jobs');
+        const role = profile?.role ?? 'inspector';
+        if (role === 'supervisor' || role === 'management') {
+          router.replace('/(supervisor)');
+        } else {
+          // inspector and client both land on inspector jobs list
+          router.replace('/(inspector)/jobs');
+        }
       }
     });
   }, []);

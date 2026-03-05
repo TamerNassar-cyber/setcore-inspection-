@@ -75,8 +75,12 @@ export default function LoginScreen() {
   async function redirectByRole(userId: string) {
     const { data: profile } = await supabase
       .from('users').select('role').eq('id', userId).single();
-    // All roles use the inspector view until dedicated dashboards are built in Phase 3
-    router.replace('/(inspector)/jobs');
+    const role = profile?.role ?? 'inspector';
+    if (role === 'supervisor' || role === 'management') {
+      router.replace('/(supervisor)');
+    } else {
+      router.replace('/(inspector)/jobs');
+    }
   }
 
   return (

@@ -41,8 +41,21 @@ export default function ResetPasswordScreen() {
       Alert.alert('Error', error.message);
       return;
     }
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data: profile } = await supabase
+      .from('users').select('role').eq('id', session?.user?.id ?? '').single();
+    const role = profile?.role ?? 'inspector';
     Alert.alert('Success', 'Password set! You are now logged in.', [
-      { text: 'OK', onPress: () => router.replace('/(inspector)/jobs') }
+      {
+        text: 'OK',
+        onPress: () => {
+          if (role === 'supervisor' || role === 'management') {
+            router.replace('/(supervisor)');
+          } else {
+            router.replace('/(inspector)/jobs');
+          }
+        }
+      }
     ]);
   }
 

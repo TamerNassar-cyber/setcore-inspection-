@@ -2,20 +2,33 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   SafeAreaView, Alert, Modal, TextInput, StatusBar,
-  Dimensions,
+  Image, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
 import { getJob, saveRun, getRun } from '../../lib/db/jobs';
 import { saveJoint, getJointsByRun, getTally } from '../../lib/db/joints';
 import type { Job, InspectionRun, Joint } from '../../types';
 import type { InspectionResult } from '../../constants/standards';
+import { DEFECT_TYPES } from '../../constants/standards';
+import type { DefectType } from '../../constants/standards';
 import { format } from 'date-fns';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import Svg, { Path, Circle } from 'react-native-svg';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const LOCATIONS = [
+  { code: 'box_end', label: 'Box End' },
+  { code: 'body', label: 'Body' },
+  { code: 'pin_end', label: 'Pin End' },
+];
+
+const SEVERITIES = [
+  { code: 'minor', label: 'MINOR', color: '#F59E0B', bg: '#2B2200' },
+  { code: 'major', label: 'MAJOR', color: Colors.primary, bg: '#2B1A0D' },
+  { code: 'critical', label: 'CRITICAL', color: '#DC2626', bg: '#2B0D0D' },
+];
 
 function BackIcon() {
   return (
@@ -33,6 +46,18 @@ function XIcon() {
   );
 }
 
+function CameraIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"
+        stroke="#999" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+      />
+      <Circle cx="12" cy="13" r="4" stroke="#999" strokeWidth={1.5} />
+    </Svg>
+  );
+}
+
 export default function InspectionScreen() {
   const { jobId, runId: existingRunId } = useLocalSearchParams<{ jobId?: string; runId?: string }>();
   const [job, setJob] = useState<Job | null>(null);
@@ -41,6 +66,7 @@ export default function InspectionScreen() {
   const [tally, setTally] = useState({ total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
   const [showJointForm, setShowJointForm] = useState(false);
 
+  // Joint form fields
   const [grade, setGrade] = useState('');
   const [weight, setWeight] = useState('');
   const [od, setOd] = useState('');
@@ -49,10 +75,20 @@ export default function InspectionScreen() {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Defect form state
+  const [showDefectForm, setShowDefectForm] = useState(false);
+  const [pendingJointId, setPendingJointId] = useState<string | null>(null);
+  const [pendingJointNum, setPendingJointNum] = useState(0);
+  const [defectType, setDefectType] = useState<DefectType | ''>('');
+  const [defectLocation, setDefectLocation] = useState('');
+  const [defectSeverity, setDefectSeverity] = useState('');
+  const [defectDescription, setDefectDescription] = useState('');
+  const [defectPhotoUri, setDefectPhotoUri] = useState<string | null>(null);
+  const [savingDefect, setSavingDefect] = useState(false);
+
   async function loadData() {
     if (!jobId) return;
 
-    // Try local DB first, fall back to Supabase on web
     let j = await getJob(jobId);
     if (!j) {
       const { supabase } = await import('../../lib/supabase');
@@ -62,7 +98,7 @@ export default function InspectionScreen() {
     setJob(j);
 
     const { supabase } = await import('../../lib/supabase');
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
 
     let currentRun: InspectionRun | null = null;
     if (existingRunId) {
@@ -75,7 +111,7 @@ export default function InspectionScreen() {
       const newRun: InspectionRun = {
         id: uuidv4(),
         job_id: jobId,
-        inspector_id: (user as any)?.id ?? '',
+        inspector_id: session?.user?.id ?? '',
         start_time: new Date().toISOString(),
         status: 'active',
       };
@@ -84,13 +120,13 @@ export default function InspectionScreen() {
       currentRun = newRun;
     }
     setRun(currentRun);
+
     if (currentRun) {
       const localJoints = await getJointsByRun(currentRun.id);
       if (localJoints.length > 0) {
         setJoints(localJoints);
         setTally(await getTally(currentRun.id));
       } else {
-        // Web: fetch from Supabase
         const { data: remoteJoints } = await supabase
           .from('joints').select('*')
           .eq('run_id', currentRun.id)
@@ -128,7 +164,7 @@ export default function InspectionScreen() {
       inspected_at: new Date().toISOString(),
       synced: false,
     };
-    // Save locally (native) and to Supabase (web + sync)
+
     await saveJoint(joint);
     const { supabase } = await import('../../lib/supabase');
     try { await supabase.from('joints').insert({ ...joint, synced: undefined }); } catch (_) {}
@@ -138,7 +174,6 @@ export default function InspectionScreen() {
       setJoints(updated);
       setTally(await getTally(run.id));
     } else {
-      // Web: update state directly
       const newJoints = [...joints, joint];
       setJoints(newJoints);
       const t = newJoints.reduce((acc, j) => ({
@@ -151,9 +186,100 @@ export default function InspectionScreen() {
       }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
       setTally(t);
     }
-    setShowJointForm(false);
+
+    // Reset joint form and close it
     setGrade(''); setWeight(''); setOd(''); setLength(''); setSerial(''); setNotes('');
     setSaving(false);
+    setShowJointForm(false);
+
+    // Auto-open defect form for FAIL / REJECT
+    if (result === 'FAIL' || result === 'REJECT') {
+      setPendingJointId(joint.id);
+      setPendingJointNum(joint.joint_number);
+      setShowDefectForm(true);
+    }
+  }
+
+  async function pickPhoto() {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status === 'granted') {
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: 'images' as any,
+          quality: 0.75,
+          allowsEditing: true,
+        });
+        if (!result.canceled) setDefectPhotoUri(result.assets[0].uri);
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images' as any,
+      quality: 0.75,
+      allowsEditing: true,
+    });
+    if (!result.canceled) setDefectPhotoUri(result.assets[0].uri);
+  }
+
+  async function saveDefect(skip: boolean) {
+    if (skip || !pendingJointId) {
+      resetDefectForm();
+      return;
+    }
+    if (!defectType || !defectSeverity) {
+      Alert.alert('Required Fields', 'Please select a defect type and severity before saving.');
+      return;
+    }
+
+    setSavingDefect(true);
+
+    let photoUrl: string | undefined;
+    if (defectPhotoUri) {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        const fileName = `${pendingJointId}-${Date.now()}.jpg`;
+        const response = await fetch(defectPhotoUri);
+        const blob = await response.blob();
+        const { data: uploadData } = await supabase.storage
+          .from('defect-photos')
+          .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+        if (uploadData) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('defect-photos')
+            .getPublicUrl(fileName);
+          photoUrl = publicUrl;
+        }
+      } catch (_) {}
+    }
+
+    const defect = {
+      id: uuidv4(),
+      joint_id: pendingJointId,
+      defect_type: defectType,
+      location: defectLocation || null,
+      severity: defectSeverity,
+      description: defectDescription || null,
+      photo_url: photoUrl ?? null,
+    };
+
+    try {
+      const { supabase } = await import('../../lib/supabase');
+      await supabase.from('defects').insert(defect);
+    } catch (_) {}
+
+    setSavingDefect(false);
+    resetDefectForm();
+  }
+
+  function resetDefectForm() {
+    setShowDefectForm(false);
+    setPendingJointId(null);
+    setPendingJointNum(0);
+    setDefectType('');
+    setDefectLocation('');
+    setDefectSeverity('');
+    setDefectDescription('');
+    setDefectPhotoUri(null);
   }
 
   if (!job) return (
@@ -201,7 +327,6 @@ export default function InspectionScreen() {
           <TallyCell label="FOOTAGE" value={`${Math.round(tally.total_length_ft)}'`} color="#60A5FA" />
         </View>
 
-        {/* Progress bar */}
         {tally.total_joints > 0 && (
           <View style={styles.progressBar}>
             <View style={[styles.progressSegment, { width: `${passWidth}%` as any, backgroundColor: '#22C55E' }]} />
@@ -238,16 +363,12 @@ export default function InspectionScreen() {
 
       {/* Add Joint FAB */}
       <View style={styles.fabContainer}>
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowJointForm(true)}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => setShowJointForm(true)} activeOpacity={0.85}>
           <Text style={styles.fabText}>+ ADD JOINT</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Joint Entry Modal */}
+      {/* ── Joint Entry Modal ── */}
       <Modal visible={showJointForm} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -270,36 +391,148 @@ export default function InspectionScreen() {
             <FormField label="NOTES" value={notes} onChangeText={setNotes} placeholder="Optional field notes…" multiline numberOfLines={3} />
           </ScrollView>
 
-          {/* Result Buttons */}
           <View style={styles.resultRow}>
             <TouchableOpacity
               style={[styles.resultBtn, { backgroundColor: '#0D2B1A', borderColor: '#22C55E' }]}
-              onPress={() => addJoint('PASS')}
-              disabled={saving}
-              activeOpacity={0.8}
+              onPress={() => addJoint('PASS')} disabled={saving} activeOpacity={0.8}
             >
               <Text style={[styles.resultBtnIcon, { color: '#22C55E' }]}>✓</Text>
               <Text style={[styles.resultBtnText, { color: '#22C55E' }]}>PASS</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.resultBtn, { backgroundColor: '#2B1A0D', borderColor: Colors.primary }]}
-              onPress={() => addJoint('FAIL')}
-              disabled={saving}
-              activeOpacity={0.8}
+              onPress={() => addJoint('FAIL')} disabled={saving} activeOpacity={0.8}
             >
               <Text style={[styles.resultBtnIcon, { color: Colors.primary }]}>✗</Text>
               <Text style={[styles.resultBtnText, { color: Colors.primary }]}>FAIL</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.resultBtn, { backgroundColor: '#2B0D0D', borderColor: '#DC2626' }]}
-              onPress={() => addJoint('REJECT')}
-              disabled={saving}
-              activeOpacity={0.8}
+              onPress={() => addJoint('REJECT')} disabled={saving} activeOpacity={0.8}
             >
               <Text style={[styles.resultBtnIcon, { color: '#DC2626' }]}>⊘</Text>
               <Text style={[styles.resultBtnText, { color: '#DC2626' }]}>REJECT</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Defect Logging Modal ── */}
+      <Modal visible={showDefectForm} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={[styles.modalHeader, styles.defectModalHeader]}>
+            <View>
+              <Text style={styles.defectModalTitle}>Log Defect</Text>
+              <Text style={styles.defectModalSub}>Joint #{pendingJointNum}</Text>
+            </View>
+            <TouchableOpacity onPress={() => saveDefect(true)} style={styles.modalCloseBtn}>
+              <XIcon />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+
+            {/* Defect Type */}
+            <Text style={styles.defectSectionLabel}>DEFECT TYPE *</Text>
+            <View style={styles.defectTypeGrid}>
+              {DEFECT_TYPES.map(dt => (
+                <TouchableOpacity
+                  key={dt.code}
+                  style={[styles.defectTypeChip, defectType === dt.code && styles.defectTypeChipActive]}
+                  onPress={() => setDefectType(dt.code)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.defectTypeChipText, defectType === dt.code && styles.defectTypeChipTextActive]}>
+                    {dt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Location */}
+            <Text style={[styles.defectSectionLabel, { marginTop: 22 }]}>LOCATION ON JOINT</Text>
+            <View style={styles.locationRow}>
+              {LOCATIONS.map(loc => (
+                <TouchableOpacity
+                  key={loc.code}
+                  style={[styles.locationBtn, defectLocation === loc.code && styles.locationBtnActive]}
+                  onPress={() => setDefectLocation(defectLocation === loc.code ? '' : loc.code)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.locationBtnText, defectLocation === loc.code && styles.locationBtnTextActive]}>
+                    {loc.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Severity */}
+            <Text style={[styles.defectSectionLabel, { marginTop: 22 }]}>SEVERITY *</Text>
+            <View style={styles.severityRow}>
+              {SEVERITIES.map(sev => (
+                <TouchableOpacity
+                  key={sev.code}
+                  style={[
+                    styles.severityBtn,
+                    { borderColor: defectSeverity === sev.code ? sev.color : '#2A2A2A' },
+                    defectSeverity === sev.code && { backgroundColor: sev.bg },
+                  ]}
+                  onPress={() => setDefectSeverity(sev.code)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.severityBtnText, { color: defectSeverity === sev.code ? sev.color : '#555' }]}>
+                    {sev.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Description */}
+            <Text style={[styles.defectSectionLabel, { marginTop: 22 }]}>DESCRIPTION</Text>
+            <TextInput
+              style={styles.defectDescInput}
+              value={defectDescription}
+              onChangeText={setDefectDescription}
+              placeholder="Describe the defect — location, extent, measurements…"
+              placeholderTextColor="#444"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+
+            {/* Photo */}
+            <Text style={[styles.defectSectionLabel, { marginTop: 22 }]}>PHOTO</Text>
+            {defectPhotoUri ? (
+              <View style={styles.photoContainer}>
+                <Image source={{ uri: defectPhotoUri }} style={styles.photoPreview} resizeMode="cover" />
+                <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => setDefectPhotoUri(null)}>
+                  <Text style={styles.photoRemoveBtnText}>Remove Photo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.photoPickerBtn} onPress={pickPhoto} activeOpacity={0.7}>
+                <CameraIcon />
+                <Text style={styles.photoPickerText}>
+                  {Platform.OS === 'web' ? 'Choose Photo' : 'Take Photo / Choose from Library'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={{ height: 24 }} />
+          </ScrollView>
+
+          {/* Action row */}
+          <View style={styles.defectActionRow}>
+            <TouchableOpacity style={styles.skipBtn} onPress={() => saveDefect(true)} activeOpacity={0.7}>
+              <Text style={styles.skipBtnText}>SKIP</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveDefectBtn, savingDefect && { opacity: 0.6 }]}
+              onPress={() => saveDefect(false)}
+              disabled={savingDefect}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.saveDefectBtnText}>{savingDefect ? 'SAVING…' : 'SAVE DEFECT'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -332,10 +565,10 @@ function FormField({ label, style, ...props }: any) {
 
 function resultStyle(result: string) {
   switch (result) {
-    case 'PASS': return { borderColor: '#22C55E', badgeBg: '#0D2B1A', badgeText: '#22C55E', resultLabel: 'PASS' };
-    case 'FAIL': return { borderColor: Colors.primary, badgeBg: '#2B1A0D', badgeText: Colors.primary, resultLabel: 'FAIL' };
+    case 'PASS':   return { borderColor: '#22C55E', badgeBg: '#0D2B1A', badgeText: '#22C55E', resultLabel: 'PASS' };
+    case 'FAIL':   return { borderColor: Colors.primary, badgeBg: '#2B1A0D', badgeText: Colors.primary, resultLabel: 'FAIL' };
     case 'REJECT': return { borderColor: '#DC2626', badgeBg: '#2B0D0D', badgeText: '#DC2626', resultLabel: 'REJECT' };
-    default: return { borderColor: '#333', badgeBg: '#1A1A1A', badgeText: '#666', resultLabel: result };
+    default:       return { borderColor: '#333', badgeBg: '#1A1A1A', badgeText: '#666', resultLabel: result };
   }
 }
 
@@ -354,51 +587,20 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1A1A1A',
     gap: 12,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  backBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1 },
   headerClient: { color: Colors.white, fontSize: 15, fontWeight: '700' },
   headerMeta: { color: '#555', fontSize: 12, marginTop: 1 },
-  standardPill: {
-    backgroundColor: '#1E1208',
-    borderWidth: 1,
-    borderColor: '#3D2510',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
+  standardPill: { backgroundColor: '#1E1208', borderWidth: 1, borderColor: '#3D2510', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   standardPillText: { color: Colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
 
-  tallyPanel: {
-    backgroundColor: '#0A0A0A',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
-    paddingBottom: 12,
-  },
-  tallyRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingTop: 14,
-    paddingBottom: 12,
-  },
+  tallyPanel: { backgroundColor: '#0A0A0A', borderBottomWidth: 1, borderBottomColor: '#1A1A1A', paddingBottom: 12 },
+  tallyRow: { flexDirection: 'row', paddingHorizontal: 8, paddingTop: 14, paddingBottom: 12 },
   tallyCell: { flex: 1, alignItems: 'center' },
   tallyValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   tallyLabel: { fontSize: 9, color: '#444', marginTop: 3, fontWeight: '700', letterSpacing: 0.8 },
   tallyDivider: { width: 1, height: 32, backgroundColor: '#1F1F1F', alignSelf: 'center' },
-  progressBar: {
-    height: 4,
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
-  },
+  progressBar: { height: 4, flexDirection: 'row', marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', backgroundColor: '#1A1A1A' },
   progressSegment: { height: 4 },
 
   jointList: { paddingHorizontal: 16, paddingTop: 12 },
@@ -418,93 +620,110 @@ const styles = StyleSheet.create({
   jointSpec: { fontSize: 12, color: '#666', marginTop: 3 },
   jointSerial: { fontSize: 11, color: '#444', marginTop: 2 },
   jointTime: { fontSize: 11, color: '#333', marginTop: 4 },
-  resultBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    alignItems: 'center',
-    minWidth: 62,
-  },
+  resultBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, alignItems: 'center', minWidth: 62 },
   resultBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
 
   fabContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: '#0A0A0A',
-    borderTopWidth: 1,
-    borderTopColor: '#1A1A1A',
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 16, backgroundColor: '#0A0A0A',
+    borderTopWidth: 1, borderTopColor: '#1A1A1A',
   },
   fab: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 16, alignItems: 'center',
+    shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   fabText: { color: Colors.white, fontSize: 14, fontWeight: '800', letterSpacing: 2 },
 
-  // Modal
+  // Shared modal
   modal: { flex: 1, backgroundColor: '#0F0F0F' },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#0A0A0A',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+    backgroundColor: '#0A0A0A', borderBottomWidth: 1, borderBottomColor: '#1A1A1A',
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.white },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  modalCloseBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' },
   modalScroll: { flex: 1 },
   modalContent: { padding: 20 },
   formRow: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   formField: { marginBottom: 16 },
   formLabel: { fontSize: 11, fontWeight: '700', color: '#555', letterSpacing: 1.2, marginBottom: 8 },
-  formInput: {
-    backgroundColor: '#161616',
-    borderWidth: 1.5,
-    borderColor: '#2A2A2A',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: Colors.white,
-  },
+  formInput: { backgroundColor: '#161616', borderWidth: 1.5, borderColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: Colors.white },
   formInputMulti: { paddingTop: 13, height: 80, textAlignVertical: 'top' },
 
-  resultRow: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 16,
-    backgroundColor: '#0A0A0A',
-    borderTopWidth: 1,
-    borderTopColor: '#1A1A1A',
-  },
-  resultBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    gap: 4,
-  },
+  resultRow: { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: '#0A0A0A', borderTopWidth: 1, borderTopColor: '#1A1A1A' },
+  resultBtn: { flex: 1, paddingVertical: 16, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, gap: 4 },
   resultBtnIcon: { fontSize: 18, fontWeight: '900' },
   resultBtnText: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+
+  // Defect modal
+  defectModalHeader: { borderLeftWidth: 3, borderLeftColor: Colors.primary },
+  defectModalTitle: { fontSize: 18, fontWeight: '800', color: Colors.white },
+  defectModalSub: { fontSize: 12, color: '#666', marginTop: 2 },
+
+  defectSectionLabel: {
+    fontSize: 11, fontWeight: '700', color: '#555', letterSpacing: 1.2, marginBottom: 12,
+  },
+
+  defectTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  defectTypeChip: {
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 8, borderWidth: 1.5, borderColor: '#2A2A2A',
+    backgroundColor: '#161616',
+  },
+  defectTypeChipActive: { borderColor: Colors.primary, backgroundColor: '#1E1208' },
+  defectTypeChipText: { fontSize: 13, color: '#666', fontWeight: '600' },
+  defectTypeChipTextActive: { color: Colors.primary },
+
+  locationRow: { flexDirection: 'row', gap: 10 },
+  locationBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    borderWidth: 1.5, borderColor: '#2A2A2A', backgroundColor: '#161616',
+    alignItems: 'center',
+  },
+  locationBtnActive: { borderColor: '#60A5FA', backgroundColor: '#0D1E2B' },
+  locationBtnText: { fontSize: 13, fontWeight: '700', color: '#555' },
+  locationBtnTextActive: { color: '#60A5FA' },
+
+  severityRow: { flexDirection: 'row', gap: 10 },
+  severityBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 8,
+    borderWidth: 1.5, backgroundColor: '#161616', alignItems: 'center',
+  },
+  severityBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+
+  defectDescInput: {
+    backgroundColor: '#161616', borderWidth: 1.5, borderColor: '#2A2A2A',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
+    fontSize: 14, color: Colors.white, height: 100, textAlignVertical: 'top',
+  },
+
+  photoPickerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#161616', borderWidth: 1.5, borderColor: '#2A2A2A',
+    borderRadius: 10, borderStyle: 'dashed', padding: 18,
+  },
+  photoPickerText: { fontSize: 14, color: '#666', fontWeight: '600' },
+  photoContainer: { gap: 12 },
+  photoPreview: { width: '100%', height: 200, borderRadius: 10, backgroundColor: '#161616' },
+  photoRemoveBtn: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, backgroundColor: '#2B0D0D', borderWidth: 1, borderColor: '#DC2626' },
+  photoRemoveBtnText: { color: '#DC2626', fontSize: 13, fontWeight: '700' },
+
+  defectActionRow: {
+    flexDirection: 'row', gap: 12, padding: 16,
+    backgroundColor: '#0A0A0A', borderTopWidth: 1, borderTopColor: '#1A1A1A',
+  },
+  skipBtn: {
+    paddingVertical: 16, paddingHorizontal: 20, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#2A2A2A', backgroundColor: '#161616',
+    alignItems: 'center',
+  },
+  skipBtnText: { color: '#555', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  saveDefectBtn: {
+    flex: 1, backgroundColor: Colors.primary, borderRadius: 10,
+    paddingVertical: 16, alignItems: 'center',
+    shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
+  saveDefectBtnText: { color: Colors.white, fontSize: 14, fontWeight: '800', letterSpacing: 1.5 },
 });

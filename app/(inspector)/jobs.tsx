@@ -44,8 +44,8 @@ export default function JobsScreen() {
     const local = await getJobs();
     setJobs(local);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
       const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
       if (data) {
         for (const job of data) await saveJob(job);
@@ -66,7 +66,7 @@ export default function JobsScreen() {
     return (
       <TouchableOpacity
         style={styles.jobCard}
-        onPress={() => router.push({ pathname: '/(inspector)/inspection', params: { jobId: item.id } })}
+        onPress={() => router.push({ pathname: '/(inspector)/job-detail', params: { jobId: item.id } })}
         activeOpacity={0.75}
       >
         {/* Orange left accent */}
