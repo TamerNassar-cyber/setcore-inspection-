@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#2A2A2A', backgroundColor: '#161616',
   },
   certTypeChipActive: { borderColor: Colors.primary, backgroundColor: '#1E1208' },
-  certTypeChipText: { fontSize: 13, color: '#666', fontWeight: '600', whiteSpace: 'nowrap' } as any,
+  certTypeChipText: { fontSize: 13, color: '#666', fontWeight: '600' },
   certTypeChipTextActive: { color: Colors.primary },
 
   selectedCertBanner: {
