@@ -9,8 +9,8 @@ export default function RootLayout() {
   useEffect(() => {
     initDb().catch(console.error);
 
-    // Handle magic link / OTP auth when app loads from an email link
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    // Handle auth state — routes user to correct screen on sign-in
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         const { data: profile } = await supabase
           .from('users')
@@ -22,11 +22,12 @@ export default function RootLayout() {
         if (role === 'supervisor' || role === 'management') {
           router.replace('/(supervisor)');
         } else {
-          // inspector and client both land on inspector jobs list
           router.replace('/(inspector)/jobs');
         }
       }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   return (

@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { supabase } from '../../lib/supabase';
 import { getJob } from '../../lib/db/jobs';
 import type { Job } from '../../types';
 import 'react-native-get-random-values';
@@ -63,7 +64,6 @@ export default function JobDetailScreen() {
   async function loadData() {
     if (!jobId) return;
     setLoading(true);
-    const { supabase } = await import('../../lib/supabase');
 
     // Load job
     let j = await getJob(jobId);
@@ -91,17 +91,18 @@ export default function JobDetailScreen() {
 
     // For each run: get joints + defect count + inspector name
     const summaries = await Promise.all(runsData.map(async (run) => {
-      const [jointsResult, defectsResult, inspectorResult] = await Promise.all([
-        supabase.from('joints').select('result,length').eq('run_id', run.id),
-        supabase.from('defects')
-          .select('id', { count: 'exact', head: true })
-          .in('joint_id',
-            (await supabase.from('joints').select('id').eq('run_id', run.id)).data?.map((j: any) => j.id) ?? []
-          ),
+      const [jointsResult, inspectorResult] = await Promise.all([
+        supabase.from('joints').select('id,result,length').eq('run_id', run.id),
         supabase.from('users').select('full_name').eq('id', run.inspector_id).single(),
       ]);
 
       const joints = jointsResult.data ?? [];
+      const jointIds = joints.map((j: any) => j.id);
+
+      const defectsResult = jointIds.length > 0
+        ? await supabase.from('defects').select('id', { count: 'exact', head: true }).in('joint_id', jointIds)
+        : { count: 0 };
+
       const tally = joints.reduce((acc: any, j: any) => ({
         total_joints: acc.total_joints + 1,
         accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
@@ -132,7 +133,6 @@ export default function JobDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           setCompleting(true);
-          const { supabase } = await import('../../lib/supabase');
           await supabase.from('jobs').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', jobId);
           setJob(prev => prev ? { ...prev, status: 'completed' } : prev);
           setCompleting(false);
@@ -149,7 +149,6 @@ export default function JobDetailScreen() {
         text: 'Approve',
         onPress: async () => {
           setApproving(true);
-          const { supabase } = await import('../../lib/supabase');
           await supabase.from('jobs').update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', jobId);
           setJob(prev => prev ? { ...prev, status: 'approved' } : prev);
           setApproving(false);
@@ -332,11 +331,16 @@ export default function JobDetailScreen() {
       {/* Bottom Action */}
       {(canComplete || canApprove) && (
         <View style={styles.actionBar}>
-          {canComplete && (
+          {canComplete && runs.length === 0 && (
+            <View style={styles.completeHintBox}>
+              <Text style={styles.completeHintText}>Start an inspection run before completing this job</Text>
+            </View>
+          )}
+          {canComplete && runs.length > 0 && (
             <TouchableOpacity
               style={[styles.completeBtn, completing && { opacity: 0.6 }]}
               onPress={handleCompleteJob}
-              disabled={completing || runs.length === 0}
+              disabled={completing}
               activeOpacity={0.85}
             >
               <CheckIcon />
@@ -492,6 +496,11 @@ const styles = StyleSheet.create({
     padding: 16, backgroundColor: '#0A0A0A',
     borderTopWidth: 1, borderTopColor: '#1A1A1A',
   },
+  completeHintBox: {
+    backgroundColor: '#1A1A1A', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 16,
+    alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A',
+  },
+  completeHintText: { color: '#555', fontSize: 13, fontWeight: '600', textAlign: 'center' },
   completeBtn: {
     backgroundColor: '#1A1F2E', borderWidth: 1.5, borderColor: '#60A5FA',
     borderRadius: 10, paddingVertical: 16, alignItems: 'center',

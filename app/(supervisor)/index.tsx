@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, RefreshControl, StatusBar,
+  SafeAreaView, RefreshControl, StatusBar, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { format } from 'date-fns';
@@ -14,6 +14,14 @@ function LogOutIcon() {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
       <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke={Colors.primary} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -73,53 +81,66 @@ export default function SupervisorDashboard() {
       setUserRole(profile.role);
     }
 
-    // Load all jobs
-    const { data: jobsData } = await supabase
-      .from('jobs')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Load all jobs + all runs + all users in 3 parallel queries (no N+1)
+    const [jobsRes, allRunsRes, allUsersRes] = await Promise.all([
+      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+      supabase.from('inspection_runs').select('id,job_id'),
+      supabase.from('users').select('id,full_name'),
+    ]);
 
+    const jobsData = jobsRes.data;
     if (!jobsData) { setLoading(false); setRefreshing(false); return; }
 
-    // Enrich each job with creator name, run count, joint count
-    const enriched = await Promise.all(jobsData.map(async (job) => {
-      const [creatorRes, runsRes] = await Promise.all([
-        supabase.from('users').select('full_name').eq('id', job.created_by).single(),
-        supabase.from('inspection_runs').select('id').eq('job_id', job.id),
-      ]);
+    // Build lookup maps
+    const userMap = new Map((allUsersRes.data ?? []).map(u => [u.id, u.full_name]));
+    const runsByJob = new Map<string, string[]>();
+    for (const run of allRunsRes.data ?? []) {
+      const arr = runsByJob.get(run.job_id) ?? [];
+      arr.push(run.id);
+      runsByJob.set(run.job_id, arr);
+    }
 
-      const runIds = runsRes.data?.map(r => r.id) ?? [];
+    // Fetch joint and defect counts for all runs in 2 queries
+    const allRunIds = (allRunsRes.data ?? []).map(r => r.id);
+    const [allJointsRes] = await Promise.all([
+      allRunIds.length > 0
+        ? supabase.from('joints').select('id,run_id').in('run_id', allRunIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
-      let total_joints = 0;
-      let defect_count = 0;
+    const allJoints = allJointsRes.data ?? [];
+    const jointsByRun = new Map<string, string[]>();
+    for (const j of allJoints) {
+      const arr = jointsByRun.get(j.run_id) ?? [];
+      arr.push(j.id);
+      jointsByRun.set(j.run_id, arr);
+    }
 
-      if (runIds.length > 0) {
-        const [jointsRes] = await Promise.all([
-          supabase.from('joints').select('id', { count: 'exact', head: true }).in('run_id', runIds),
-        ]);
-        total_joints = jointsRes.count ?? 0;
+    const allJointIds = allJoints.map(j => j.id);
+    const defectsRes = allJointIds.length > 0
+      ? await supabase.from('defects').select('id,joint_id').in('joint_id', allJointIds)
+      : { data: [] };
 
-        // Count defects via joints in these runs
-        if (total_joints > 0) {
-          const { data: jointIds } = await supabase.from('joints').select('id').in('run_id', runIds);
-          if (jointIds && jointIds.length > 0) {
-            const { count } = await supabase
-              .from('defects')
-              .select('id', { count: 'exact', head: true })
-              .in('joint_id', jointIds.map(j => j.id));
-            defect_count = count ?? 0;
-          }
-        }
-      }
+    const defectsByJoint = new Map<string, number>();
+    for (const d of defectsRes.data ?? []) {
+      defectsByJoint.set(d.joint_id, (defectsByJoint.get(d.joint_id) ?? 0) + 1);
+    }
+
+    // Enrich jobs using the preloaded maps
+    const enriched: JobRow[] = jobsData.map(job => {
+      const runIds = runsByJob.get(job.id) ?? [];
+      const jointIds = runIds.flatMap(rid => jointsByRun.get(rid) ?? []);
+      const total_joints = jointIds.length;
+      const defect_count = jointIds.reduce((sum, jid) => sum + (defectsByJoint.get(jid) ?? 0), 0);
 
       return {
         ...job,
-        creator_name: creatorRes.data?.full_name ?? 'Inspector',
+        creator_name: userMap.get(job.created_by) ?? 'Inspector',
         run_count: runIds.length,
         total_joints,
         defect_count,
       } as JobRow;
-    }));
+    });
 
     setJobs(enriched);
     setLoading(false);
@@ -128,9 +149,22 @@ export default function SupervisorDashboard() {
 
   useEffect(() => { loadData(); }, []);
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.replace('/(auth)/login');
+  function handleSignOut() {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ],
+    );
   }
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter);
@@ -200,6 +234,14 @@ export default function SupervisorDashboard() {
       <View style={styles.header}>
         <SetcoreLogo width={120} color="white" />
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.newJobBtn}
+            onPress={() => router.push('/(inspector)/new-job')}
+            activeOpacity={0.8}
+          >
+            <PlusIcon />
+            <Text style={styles.newJobText}>NEW JOB</Text>
+          </TouchableOpacity>
           <View style={styles.rolePill}>
             <Text style={styles.rolePillText}>{userRole.toUpperCase()}</Text>
           </View>
@@ -289,6 +331,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#1A1A1A',
   },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  newJobBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 8, shadowColor: Colors.primary, shadowOpacity: 0.3,
+    shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  },
+  newJobText: { color: Colors.white, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   rolePill: {
     backgroundColor: '#1E1208', borderWidth: 1, borderColor: '#3D2510',
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,

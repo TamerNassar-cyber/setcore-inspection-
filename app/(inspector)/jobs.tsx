@@ -124,14 +124,23 @@ export default function JobsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <SetcoreLogo width={130} color="white" />
-        <TouchableOpacity
-          style={styles.newJobBtn}
-          onPress={() => router.push('/(inspector)/new-job')}
-          activeOpacity={0.8}
-        >
-          <PlusIcon />
-          <Text style={styles.newJobText}>NEW JOB</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.dashboardBtn}
+            onPress={() => router.push('/(supervisor)')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.dashboardBtnText}>DASHBOARD</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.newJobBtn}
+            onPress={() => router.push('/(inspector)/new-job')}
+            activeOpacity={0.8}
+          >
+            <PlusIcon />
+            <Text style={styles.newJobText}>NEW JOB</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search bar */}
@@ -221,6 +230,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#1A1A1A',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dashboardBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    backgroundColor: '#161616',
+  },
+  dashboardBtnText: {
+    color: '#AAA',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   newJobBtn: {
     flexDirection: 'row',

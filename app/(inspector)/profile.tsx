@@ -82,9 +82,22 @@ export default function ProfileScreen() {
 
   useEffect(() => { loadProfile(); }, []);
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.replace('/(auth)/login');
+  function handleSignOut() {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ],
+    );
   }
 
   async function handleSaveCert() {

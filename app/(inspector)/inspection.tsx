@@ -2,12 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   SafeAreaView, Alert, Modal, TextInput, StatusBar,
-  Image, Platform,
+  Image, Platform, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Colors } from '../../constants/colors';
+import { supabase } from '../../lib/supabase';
 import { getJob, saveRun, getRun } from '../../lib/db/jobs';
 import { saveJoint, getJointsByRun, getTally } from '../../lib/db/joints';
 import type { Job, InspectionRun, Joint } from '../../types';
@@ -105,13 +106,11 @@ export default function InspectionScreen() {
 
     let j = await getJob(jobId);
     if (!j) {
-      const { supabase } = await import('../../lib/supabase');
       const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
       j = data;
     }
     setJob(j);
 
-    const { supabase } = await import('../../lib/supabase');
     const { data: { session } } = await supabase.auth.getSession();
 
     let currentRun: InspectionRun | null = null;
@@ -192,7 +191,6 @@ export default function InspectionScreen() {
     };
 
     await saveJoint(joint);
-    const { supabase } = await import('../../lib/supabase');
     try { await supabase.from('joints').insert({ ...joint, synced: undefined }); } catch (_) {}
 
     const updated = await getJointsByRun(run.id);
@@ -285,7 +283,6 @@ export default function InspectionScreen() {
     let photoUrl: string | undefined;
     if (defectPhotoUri) {
       try {
-        const { supabase } = await import('../../lib/supabase');
         const fileName = `${pendingJointId}-${Date.now()}.jpg`;
         const response = await fetch(defectPhotoUri);
         const blob = await response.blob();
@@ -298,7 +295,9 @@ export default function InspectionScreen() {
             .getPublicUrl(fileName);
           photoUrl = publicUrl;
         }
-      } catch (_) {}
+      } catch (e) {
+        Alert.alert('Photo Upload Failed', 'The defect will be saved without the photo. Check your connection and try again.');
+      }
     }
 
     const defect = {
@@ -312,7 +311,6 @@ export default function InspectionScreen() {
     };
 
     try {
-      const { supabase } = await import('../../lib/supabase');
       await supabase.from('defects').insert(defect);
     } catch (_) {}
 
@@ -334,6 +332,7 @@ export default function InspectionScreen() {
   if (!job) return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.loadingContainer}>
+        <ActivityIndicator color={Colors.primary} size="large" />
         <Text style={styles.loadingText}>Loading inspection…</Text>
       </View>
     </SafeAreaView>

@@ -61,7 +61,13 @@ export default function NewJobScreen() {
     }
     setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
+    if (!session?.user?.id) {
+      Alert.alert('Session Expired', 'Please sign in again.');
+      setSaving(false);
+      router.replace('/(auth)/login');
+      return;
+    }
+    const user = session.user;
     const now = new Date().toISOString();
     const job: Job = {
       id: uuidv4(),
