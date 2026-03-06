@@ -92,6 +92,9 @@ export default function InspectionScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scanLocked = useRef(false);
 
+  // Inline error states — Alert.alert is unreliable on web (browsers can block it)
+  const [saveError, setSaveError] = useState('');
+
   // Defect form state
   const [showDefectForm, setShowDefectForm] = useState(false);
   const [pendingJointId, setPendingJointId] = useState<string | null>(null);
@@ -153,6 +156,16 @@ export default function InspectionScreen() {
           } catch (_) {}
         }
         saveRun(newRun).catch(() => {}); // local SQLite — no-op on web
+
+        // Ensure user profile row exists — inspection_runs.inspector_id is a FK to users.id
+        await supabase.from('users').upsert({
+          id: session.user.id,
+          email: session.user.email ?? '',
+          full_name: session.user.user_metadata?.full_name ?? session.user.email ?? '',
+          role: session.user.user_metadata?.role ?? 'inspector',
+          company: session.user.user_metadata?.company ?? 'Setcore Petroleum Services',
+        }, { onConflict: 'id', ignoreDuplicates: true });
+
         // Await the run insert so joints can reference it via FK
         const { error: runErr } = await supabase.from('inspection_runs').insert(newRun);
         if (runErr) console.warn('Run insert failed:', runErr.message, '— joints will sync when run is available');
@@ -195,7 +208,11 @@ export default function InspectionScreen() {
   const reversedJoints = useMemo(() => joints.slice().reverse(), [joints]);
 
   async function addJoint(result: InspectionResult) {
-    if (!run) return;
+    if (!run) {
+      setSaveError('Inspection run not ready. Please close this form and try again.');
+      return;
+    }
+    setSaveError('');
     setSaving(true);
     try {
       const joint: Joint = {
@@ -255,7 +272,7 @@ export default function InspectionScreen() {
       // PASS: keep form open — fields are cleared and ready for the next joint
     } catch (err) {
       console.error('addJoint error:', err);
-      Alert.alert('Error', 'Failed to save joint. Please try again.');
+      setSaveError('Failed to save joint. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -468,8 +485,12 @@ export default function InspectionScreen() {
 
       {/* Add Joint FAB */}
       <View style={styles.fabContainer}>
-        <TouchableOpacity style={styles.fab} onPress={() => setShowJointForm(true)} activeOpacity={0.85}>
-          <Text style={styles.fabText}>+ ADD JOINT</Text>
+        <TouchableOpacity
+          style={[styles.fab, !run && { opacity: 0.5 }]}
+          onPress={() => { setSaveError(''); setShowJointForm(true); }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabText}>{run ? '+ ADD JOINT' : 'LOADING RUN…'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -483,11 +504,15 @@ export default function InspectionScreen() {
             </TouchableOpacity>
           </View>
 
-          {lastSaved && (
+          {saveError ? (
+            <View style={styles.saveErrorBanner}>
+              <Text style={styles.saveErrorText}>{saveError}</Text>
+            </View>
+          ) : lastSaved ? (
             <View style={[styles.savedFlash, lastSaved.result === 'PASS' ? styles.savedFlashPass : lastSaved.result === 'FAIL' ? styles.savedFlashFail : styles.savedFlashReject]}>
               <Text style={styles.savedFlashText}>✓ Joint #{lastSaved.num} saved as {lastSaved.result}</Text>
             </View>
-          )}
+          ) : null}
 
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
             <View style={styles.formRow}>
@@ -807,6 +832,9 @@ const styles = StyleSheet.create({
     shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   fabText: { color: Colors.white, fontSize: 14, fontWeight: '800', letterSpacing: 2 },
+
+  saveErrorBanner: { marginHorizontal: 16, marginTop: 8, backgroundColor: '#2B0D0D', borderRadius: 8, borderWidth: 1, borderColor: '#DC2626', paddingHorizontal: 14, paddingVertical: 10 },
+  saveErrorText: { color: '#DC2626', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
   savedFlash: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
   savedFlashPass: { backgroundColor: '#0D2B1A' },
