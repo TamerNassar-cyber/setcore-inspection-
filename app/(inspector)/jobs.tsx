@@ -49,7 +49,7 @@ export default function JobsScreen() {
       if (!session?.user) return;
       const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
       if (data) {
-        for (const job of data) await saveJob(job);
+        await Promise.all(data.map(job => saveJob(job)));
         setJobs(data);
       }
     } catch (_) {

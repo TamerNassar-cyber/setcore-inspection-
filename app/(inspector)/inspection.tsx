@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity,
   SafeAreaView, Alert, Modal, TextInput, StatusBar,
@@ -130,10 +130,14 @@ export default function InspectionScreen() {
         ]);
         currentRun = localRun ?? remoteRunRes.data;
       } else {
+        if (!session?.user) {
+          router.replace('/(auth)/login');
+          return;
+        }
         const newRun: InspectionRun = {
           id: uuidv4(),
           job_id: jobId,
-          inspector_id: session?.user?.id ?? '',
+          inspector_id: session.user.id,
           start_time: new Date().toISOString(),
           status: 'active',
         };
@@ -148,8 +152,10 @@ export default function InspectionScreen() {
             }
           } catch (_) {}
         }
-        saveRun(newRun).catch(() => {}); // no-op on web
-        supabase.from('inspection_runs').insert(newRun).catch(() => {});
+        saveRun(newRun).catch(() => {}); // local SQLite — no-op on web
+        // Await the run insert so joints can reference it via FK
+        const { error: runErr } = await supabase.from('inspection_runs').insert(newRun);
+        if (runErr) console.warn('Run insert failed:', runErr.message, '— joints will sync when run is available');
         currentRun = newRun;
       }
       setRun(currentRun);
@@ -185,6 +191,8 @@ export default function InspectionScreen() {
   }
 
   useEffect(() => { loadData(); }, [jobId]);
+
+  const reversedJoints = useMemo(() => joints.slice().reverse(), [joints]);
 
   async function addJoint(result: InspectionResult) {
     if (!run) return;
@@ -390,7 +398,7 @@ export default function InspectionScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(inspector)/jobs')} style={styles.backBtn} activeOpacity={0.7}>
           <BackIcon />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -427,7 +435,7 @@ export default function InspectionScreen() {
 
       {/* Joint List — FlatList virtualises rendering so 500 joints stay smooth */}
       <FlatList
-        data={joints.slice().reverse()}
+        data={reversedJoints}
         keyExtractor={j => j.id}
         contentContainerStyle={styles.jointList}
         inverted={false}

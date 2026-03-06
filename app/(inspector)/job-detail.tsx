@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   SafeAreaView, Alert, StatusBar, ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
@@ -141,7 +141,7 @@ export default function JobDetailScreen() {
     }
   }
 
-  useEffect(() => { loadData(); }, [jobId]);
+  useFocusEffect(useCallback(() => { loadData(); }, [jobId]));
 
   async function handleCompleteJob() {
     Alert.alert('Complete Job?', 'Mark this job as complete and send for supervisor review?', [
@@ -231,7 +231,7 @@ export default function JobDetailScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(inspector)/jobs')} style={styles.backBtn} activeOpacity={0.7}>
           <BackIcon />
         </TouchableOpacity>
         <View style={styles.headerCenter}>

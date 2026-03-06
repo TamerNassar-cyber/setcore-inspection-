@@ -66,16 +66,17 @@ export default function ReportsScreen() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { setLoading(false); return; }
 
-    const { data: profileData } = await supabase
-      .from('users').select('role').eq('id', session.user.id).single();
-    const role = (profileData as any)?.role ?? 'inspector';
-
-    // Load jobs — supervisors/management see all, inspectors see own
     const userId = session.user.id;
-    const { data: jobsData } = role === 'inspector'
-      ? await supabase.from('jobs').select('*').eq('created_by', userId).order('created_at', { ascending: false })
-      : await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-    if (!jobsData || jobsData.length === 0) { setJobs([]); setLoading(false); setRefreshing(false); return; }
+    // Fire profile + all jobs in parallel — filter inspectors client-side
+    const [profileRes, allJobsRes] = await Promise.all([
+      supabase.from('users').select('role').eq('id', userId).single(),
+      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+    ]);
+    const role = (profileRes.data as any)?.role ?? 'inspector';
+    const jobsData = role === 'inspector'
+      ? (allJobsRes.data ?? []).filter((j: any) => j.created_by === userId)
+      : (allJobsRes.data ?? []);
+    if (jobsData.length === 0) { setJobs([]); return; }
 
     const jobIds = jobsData.map(j => j.id);
 

@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, RefreshControl, StatusBar, Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
@@ -145,7 +145,7 @@ export default function SupervisorDashboard() {
     }
   }
 
-  useEffect(() => { loadData(); }, []);
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   function handleSignOut() {
     Alert.alert(
