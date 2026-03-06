@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, RefreshControl, StatusBar, Alert,
@@ -165,15 +165,19 @@ export default function SupervisorDashboard() {
     );
   }
 
-  const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter);
+  const filtered = useMemo(
+    () => filter === 'all' ? jobs : jobs.filter(j => j.status === filter),
+    [jobs, filter]
+  );
 
-  // Counts for filter badges
-  const counts = {
-    all: jobs.length,
-    completed: jobs.filter(j => j.status === 'completed').length,
-    active: jobs.filter(j => j.status === 'active').length,
-    approved: jobs.filter(j => j.status === 'approved').length,
-  };
+  // Counts for filter badges — single pass through jobs
+  const counts = useMemo(() => jobs.reduce((acc, j) => {
+    acc.all++;
+    if (j.status === 'completed') acc.completed++;
+    else if (j.status === 'active') acc.active++;
+    else if (j.status === 'approved') acc.approved++;
+    return acc;
+  }, { all: 0, completed: 0, active: 0, approved: 0 }), [jobs]);
 
   function renderJob({ item }: { item: JobRow }) {
     const s = statusConfig(item.status);

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, RefreshControl, StatusBar, TextInput,
@@ -95,17 +95,18 @@ export default function JobsScreen() {
     loadCertWarnings();
   }, []));
 
-  const q = search.toLowerCase();
-  const filtered = q
-    ? jobs.filter(j =>
-        j.job_number.toLowerCase().includes(q) ||
-        j.client.toLowerCase().includes(q) ||
-        j.rig.toLowerCase().includes(q) ||
-        j.well.toLowerCase().includes(q) ||
-        (j.field ?? '').toLowerCase().includes(q) ||
-        j.country.toLowerCase().includes(q)
-      )
-    : jobs;
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter(j =>
+      j.job_number.toLowerCase().includes(q) ||
+      j.client.toLowerCase().includes(q) ||
+      j.rig.toLowerCase().includes(q) ||
+      j.well.toLowerCase().includes(q) ||
+      (j.field ?? '').toLowerCase().includes(q) ||
+      j.country.toLowerCase().includes(q)
+    );
+  }, [jobs, search]);
 
   function renderJob({ item }: { item: Job }) {
     const s = statusConfig(item.status);

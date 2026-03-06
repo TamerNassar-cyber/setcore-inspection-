@@ -63,7 +63,7 @@ function formatLocation(code: string): string {
 
 function severityColor(sev: string): string {
   if (sev === 'critical') return '#DC2626';
-  if (sev === 'major') return '#F97316';
+  if (sev === 'major') return '#FF4715';
   return '#F59E0B';
 }
 
@@ -115,7 +115,7 @@ export function buildReportHtml(job: ReportJob): string {
       <td>${formatDateTime(r.start_time)}</td>
       <td>${r.total_joints}</td>
       <td style="color:#22C55E">${r.accepted}</td>
-      <td style="color:#F97316">${r.failed}</td>
+      <td style="color:#FF4715">${r.failed}</td>
       <td style="color:#DC2626">${r.rejected}</td>
       <td>${Math.round(r.total_length_ft)} ft</td>
       <td>${r.defects.length}</td>
@@ -132,9 +132,9 @@ export function buildReportHtml(job: ReportJob): string {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 32px; }
-  h1 { font-size: 22px; font-weight: 800; color: #F97316; letter-spacing: 1px; }
+  h1 { font-size: 22px; font-weight: 800; color: #FF4715; letter-spacing: 1px; }
   h2 { font-size: 13px; font-weight: 700; color: #555; letter-spacing: 2px; text-transform: uppercase; margin: 28px 0 10px; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #F97316; padding-bottom: 20px; margin-bottom: 24px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #FF4715; padding-bottom: 20px; margin-bottom: 24px; }
   .brand-name { font-size: 18px; font-weight: 900; color: #1a1a1a; letter-spacing: 2px; }
   .brand-sub { font-size: 10px; color: #888; letter-spacing: 3px; margin-top: 3px; }
   .report-title { text-align: right; }
@@ -206,7 +206,7 @@ export function buildReportHtml(job: ReportJob): string {
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-value">${grandTotal.total_joints}</div><div class="kpi-label">TOTAL</div></div>
   <div class="kpi"><div class="kpi-value" style="color:#22C55E">${grandTotal.accepted}</div><div class="kpi-label">PASS</div></div>
-  <div class="kpi"><div class="kpi-value" style="color:#F97316">${grandTotal.failed}</div><div class="kpi-label">FAIL</div></div>
+  <div class="kpi"><div class="kpi-value" style="color:#FF4715">${grandTotal.failed}</div><div class="kpi-label">FAIL</div></div>
   <div class="kpi"><div class="kpi-value" style="color:#DC2626">${grandTotal.rejected}</div><div class="kpi-label">REJECT</div></div>
   <div class="kpi"><div class="kpi-value" style="color:#3b82f6">${Math.round(grandTotal.total_length_ft)}'</div><div class="kpi-label">FOOTAGE</div></div>
 </div>

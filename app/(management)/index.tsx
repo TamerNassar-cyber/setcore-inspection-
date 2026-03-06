@@ -120,9 +120,14 @@ export default function ManagementDashboard() {
           }
         }
 
+        // Build a Map for O(1) run lookup — avoids O(n*m) find() in the defect loop
+        const runById = new Map(runs.map(r => [r.id, r]));
+
         // Aggregate per inspector
         const inspectorMap = new Map(inspectors.map(u => [u.id, u.full_name]));
-        const statsMap = new Map<string, InspectorStat>();
+        // Use a richer accumulator than InspectorStat to track pass counts
+        type InspectorAccum = InspectorStat & { pass: number };
+        const statsMap = new Map<string, InspectorAccum>();
 
         for (const run of runs) {
           const inspId = run.inspector_id;
@@ -130,9 +135,10 @@ export default function ManagementDashboard() {
           const existing = statsMap.get(inspId) ?? {
             id: inspId,
             name: inspectorMap.get(inspId)!,
-            jobs: 0, joints: 0, defects: 0, passRate: 0,
+            jobs: 0, joints: 0, defects: 0, passRate: 0, pass: 0,
           };
           existing.joints += jointsByRun.get(run.id) ?? 0;
+          existing.pass += passByRun.get(run.id) ?? 0;
           statsMap.set(inspId, existing);
         }
 
@@ -142,22 +148,23 @@ export default function ManagementDashboard() {
           if (j.created_by) jobsByInspector.set(j.created_by, (jobsByInspector.get(j.created_by) ?? 0) + 1);
         }
 
-        // Count defects per inspector via joints
+        // Count defects per inspector via joints — O(n) with Map lookup
         const defectsPerInspector = new Map<string, number>();
         for (const joint of joints) {
-          const runObj = runs.find(r => r.id === joint.run_id);
+          const runObj = runById.get(joint.run_id);
           if (!runObj) continue;
           const d = defectsByJoint.get(joint.id) ?? 0;
           if (d > 0) defectsPerInspector.set(runObj.inspector_id, (defectsPerInspector.get(runObj.inspector_id) ?? 0) + d);
         }
 
         const stats: InspectorStat[] = Array.from(statsMap.values()).map(s => ({
-          ...s,
+          id: s.id,
+          name: s.name,
           jobs: jobsByInspector.get(s.id) ?? 0,
+          joints: s.joints,
           defects: defectsPerInspector.get(s.id) ?? 0,
-          passRate: s.joints > 0
-            ? Math.round(((s.joints - (defectsPerInspector.get(s.id) ?? 0)) / s.joints) * 100)
-            : 100,
+          // Pass rate = PASS joints / total joints (not joints - defects)
+          passRate: s.joints > 0 ? Math.round((s.pass / s.joints) * 100) : 100,
         })).sort((a, b) => b.joints - a.joints);
 
         setInspectorStats(stats);
