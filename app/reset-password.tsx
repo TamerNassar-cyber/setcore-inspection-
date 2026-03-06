@@ -13,11 +13,11 @@ export default function ResetPasswordScreen() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [linkExpired, setLinkExpired] = useState(false);
 
   useEffect(() => {
     // On web, the auth event may fire before this component mounts (hash
-    // is processed immediately on page load). Check current session first
-    // as a fallback so the "Verifying…" state never hangs.
+    // is processed immediately on page load). Check current session first.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setReady(true);
     });
@@ -27,7 +27,16 @@ export default function ResetPasswordScreen() {
         setReady(true);
       }
     });
-    return () => subscription.unsubscribe();
+
+    // If still not ready after 10 seconds, the link is likely expired or invalid
+    const timeout = setTimeout(() => {
+      setLinkExpired(true);
+    }, 10000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function handleSetPassword() {
@@ -46,7 +55,7 @@ export default function ResetPasswordScreen() {
       Alert.alert('Error', error.message);
       return;
     }
-    // onAuthStateChange in _layout.tsx will handle routing
+    // onAuthStateChange in _layout.tsx will handle routing after password set
     Alert.alert('Success', 'Password set! You are now logged in.');
   }
 
@@ -54,7 +63,17 @@ export default function ResetPasswordScreen() {
     return (
       <View style={styles.loading}>
         <SetcoreLogo width={160} color="white" />
-        <Text style={styles.loadingText}>Verifying your link…</Text>
+        {linkExpired ? (
+          <>
+            <Text style={styles.expiredText}>This link has expired or is invalid.</Text>
+            <Text style={styles.expiredSub}>Please contact your administrator to send a new invite.</Text>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(auth)/login')}>
+              <Text style={styles.backBtnText}>BACK TO LOGIN</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={styles.loadingText}>Verifying your link…</Text>
+        )}
       </View>
     );
   }
@@ -112,8 +131,12 @@ export default function ResetPasswordScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0A0A0A' },
-  loading: { flex: 1, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', gap: 24 },
+  loading: { flex: 1, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 32 },
   loadingText: { color: '#555', fontSize: 15 },
+  expiredText: { color: Colors.white, fontSize: 17, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  expiredSub: { color: '#555', fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  backBtn: { marginTop: 8, backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 14 },
+  backBtnText: { color: Colors.white, fontSize: 13, fontWeight: '800', letterSpacing: 1.2 },
   scroll: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
   brand: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 100 : 80, paddingBottom: 48 },
   divider: { width: 40, height: 3, backgroundColor: Colors.primary, marginTop: 20, marginBottom: 14, borderRadius: 2 },
