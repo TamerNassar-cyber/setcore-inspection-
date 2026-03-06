@@ -99,12 +99,12 @@ export default function JobsScreen() {
     const q = search.toLowerCase();
     if (!q) return jobs;
     return jobs.filter(j =>
-      j.job_number.toLowerCase().includes(q) ||
-      j.client.toLowerCase().includes(q) ||
-      j.rig.toLowerCase().includes(q) ||
-      j.well.toLowerCase().includes(q) ||
+      (j.job_number ?? '').toLowerCase().includes(q) ||
+      (j.client ?? '').toLowerCase().includes(q) ||
+      (j.rig ?? '').toLowerCase().includes(q) ||
+      (j.well ?? '').toLowerCase().includes(q) ||
       (j.field ?? '').toLowerCase().includes(q) ||
-      j.country.toLowerCase().includes(q)
+      (j.country ?? '').toLowerCase().includes(q)
     );
   }, [jobs, search]);
 
@@ -199,7 +199,7 @@ export default function JobsScreen() {
             <Text style={styles.certBannerIcon}>⚠</Text>
             <View>
               <Text style={styles.certBannerTitle}>
-                {expiringCerts[0].cert_type} expires in {expiringCerts[0].days_until_expiry <= 0 ? 'EXPIRED' : `${expiringCerts[0].days_until_expiry} days`}
+                {expiringCerts[0].cert_type} {expiringCerts[0].days_until_expiry <= 0 ? 'has EXPIRED' : `expires in ${expiringCerts[0].days_until_expiry} days`}
               </Text>
               {expiringCerts.length > 1 && (
                 <Text style={styles.certBannerSub}>+{expiringCerts.length - 1} more certification{expiringCerts.length - 1 > 1 ? 's' : ''} — tap to review</Text>

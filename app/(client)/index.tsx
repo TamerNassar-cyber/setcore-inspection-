@@ -77,7 +77,7 @@ export default function ClientPortal() {
       ]);
 
       const allJobs = (jobsRes.data ?? []).filter(
-        (j: any) => j.client.toLowerCase() === company.toLowerCase()
+        (j: any) => (j.client ?? '').toLowerCase() === company.toLowerCase()
       );
 
       const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]));

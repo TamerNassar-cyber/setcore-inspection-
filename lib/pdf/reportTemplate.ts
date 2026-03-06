@@ -67,6 +67,12 @@ function severityColor(sev: string): string {
   return '#F59E0B';
 }
 
+/** Escape HTML entities so user data never breaks the PDF layout */
+function esc(s: string | undefined | null): string {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
@@ -101,27 +107,31 @@ export function buildReportHtml(job: ReportJob): string {
 
   const defectRows = allDefects.map(d => `
     <tr>
-      <td>${formatDefectType(d.defect_type)}</td>
-      <td>${d.location ? formatLocation(d.location) : '—'}</td>
-      <td style="color:${severityColor(d.severity)};font-weight:700">${d.severity.toUpperCase()}</td>
-      <td>${d.description ?? '—'}</td>
-      <td>${d.inspector}</td>
+      <td>${esc(formatDefectType(d.defect_type))}</td>
+      <td>${d.location ? esc(formatLocation(d.location)) : '—'}</td>
+      <td style="color:${severityColor(d.severity)};font-weight:700">${esc(d.severity.toUpperCase())}</td>
+      <td>${esc(d.description)}</td>
+      <td>${esc(d.inspector)}</td>
     </tr>`).join('');
 
-  const runRows = job.runs.map((r, idx) => `
+  const runRows = job.runs.map((r, idx) => {
+    const runPassRate = r.total_joints > 0 ? Math.round((r.accepted / r.total_joints) * 100) : '—';
+    return `
     <tr>
       <td>Run ${idx + 1}</td>
-      <td>${r.inspector_name}</td>
+      <td>${esc(r.inspector_name)}</td>
       <td>${formatDateTime(r.start_time)}</td>
       <td>${r.total_joints}</td>
       <td style="color:#22C55E">${r.accepted}</td>
       <td style="color:#FF4715">${r.failed}</td>
       <td style="color:#DC2626">${r.rejected}</td>
       <td>${Math.round(r.total_length_ft)} ft</td>
+      <td>${runPassRate}${typeof runPassRate === 'number' ? '%' : ''}</td>
       <td>${r.defects.length}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
-  const fieldRow = job.field ? `<tr><td>Field</td><td>${job.field}</td></tr>` : '';
+  const fieldRow = job.field ? `<tr><td>Field</td><td>${esc(job.field)}</td></tr>` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -172,20 +182,20 @@ export function buildReportHtml(job: ReportJob): string {
   </div>
   <div class="report-title">
     <h1>FIELD INSPECTION REPORT</h1>
-    <div class="job-num">${job.job_number}</div>
+    <div class="job-num">${esc(job.job_number)}</div>
     <div style="color:#888;font-size:11px;margin-top:4px">${formatDate(job.created_at)}</div>
   </div>
 </div>
 
 <h2>Job Details</h2>
 <table class="info-table">
-  <tr><td>Client</td><td>${job.client}</td></tr>
-  <tr><td>Rig</td><td>${job.rig}</td></tr>
-  <tr><td>Well</td><td>${job.well}</td></tr>
+  <tr><td>Client</td><td>${esc(job.client)}</td></tr>
+  <tr><td>Rig</td><td>${esc(job.rig)}</td></tr>
+  <tr><td>Well</td><td>${esc(job.well)}</td></tr>
   ${fieldRow}
-  <tr><td>Country</td><td>${job.country}</td></tr>
-  <tr><td>Standard</td><td><strong>${job.standard.replace(/_/g, ' ')}</strong></td></tr>
-  <tr><td>Inspector</td><td>${job.creator_name}</td></tr>
+  <tr><td>Country</td><td>${esc(job.country)}</td></tr>
+  <tr><td>Standard</td><td><strong>${esc(job.standard.replace(/_/g, ' '))}</strong></td></tr>
+  <tr><td>Inspector</td><td>${esc(job.creator_name)}</td></tr>
   <tr><td>Status</td><td>
     <span class="status-badge status-${job.status}">${job.status.toUpperCase()}</span>
   </td></tr>
@@ -216,7 +226,7 @@ export function buildReportHtml(job: ReportJob): string {
   <thead>
     <tr>
       <th>Run</th><th>Inspector</th><th>Date</th><th>Joints</th>
-      <th>Pass</th><th>Fail</th><th>Reject</th><th>Footage</th><th>Defects</th>
+      <th>Pass</th><th>Fail</th><th>Reject</th><th>Footage</th><th>Pass Rate</th><th>Defects</th>
     </tr>
   </thead>
   <tbody>${runRows}</tbody>

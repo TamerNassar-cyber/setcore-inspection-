@@ -121,9 +121,10 @@ export default function ProfileScreen() {
     if (!certNumber.trim()) { Alert.alert('Required', 'Please enter the certificate number.'); return; }
     // Date validation: expect YYYY-MM-DD
     const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRe.test(issuedDate)) { Alert.alert('Invalid Date', 'Issued date must be in format YYYY-MM-DD (e.g. 2024-01-15)'); return; }
-    if (!dateRe.test(expiryDate)) { Alert.alert('Invalid Date', 'Expiry date must be in format YYYY-MM-DD (e.g. 2026-01-15)'); return; }
-    if (new Date(expiryDate) <= new Date(issuedDate)) { Alert.alert('Invalid Dates', 'Expiry date must be after issued date.'); return; }
+    const isValidDate = (d: string) => dateRe.test(d) && !isNaN(new Date(d).getTime());
+    if (!isValidDate(issuedDate)) { Alert.alert('Invalid Date', 'Issued date must be in format YYYY-MM-DD (e.g. 2024-01-15)'); return; }
+    if (!isValidDate(expiryDate)) { Alert.alert('Invalid Date', 'Expiry date must be in format YYYY-MM-DD (e.g. 2026-01-15)'); return; }
+    if (new Date(expiryDate).getTime() <= new Date(issuedDate).getTime()) { Alert.alert('Invalid Dates', 'Expiry date must be after issued date.'); return; }
 
     setSavingCert(true);
     try {
