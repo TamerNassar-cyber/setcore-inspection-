@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity,
   SafeAreaView, Alert, Modal, TextInput, StatusBar,
   Image, Platform, ActivityIndicator,
 } from 'react-native';
@@ -163,7 +163,8 @@ export default function InspectionScreen() {
           const { data: remoteJoints } = await supabase
             .from('joints').select('*')
             .eq('run_id', currentRun.id)
-            .order('joint_number', { ascending: true });
+            .order('joint_number', { ascending: true })
+            .limit(500);
           if (remoteJoints) setJoints(remoteJoints);
           const t = remoteJoints?.reduce((acc: any, j: any) => ({
             total_joints: acc.total_joints + 1,
@@ -424,12 +425,21 @@ export default function InspectionScreen() {
         )}
       </View>
 
-      {/* Joint List */}
-      <ScrollView contentContainerStyle={styles.jointList}>
-        {joints.slice().reverse().map(joint => {
+      {/* Joint List — FlatList virtualises rendering so 500 joints stay smooth */}
+      <FlatList
+        data={joints.slice().reverse()}
+        keyExtractor={j => j.id}
+        contentContainerStyle={styles.jointList}
+        inverted={false}
+        initialNumToRender={20}
+        maxToRenderPerBatch={20}
+        windowSize={10}
+        removeClippedSubviews
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        renderItem={({ item: joint }) => {
           const { borderColor, badgeBg, badgeText, resultLabel } = resultStyle(joint.result);
           return (
-            <View key={joint.id} style={[styles.jointCard, { borderLeftColor: borderColor }]}>
+            <View style={[styles.jointCard, { borderLeftColor: borderColor }]}>
               <View style={styles.jointLeft}>
                 <Text style={styles.jointNum}>Joint #{joint.joint_number}</Text>
                 {joint.grade || joint.od ? (
@@ -445,9 +455,8 @@ export default function InspectionScreen() {
               </View>
             </View>
           );
-        })}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        }}
+      />
 
       {/* Add Joint FAB */}
       <View style={styles.fabContainer}>
