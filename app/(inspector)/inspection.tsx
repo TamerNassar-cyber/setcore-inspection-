@@ -329,6 +329,17 @@ export default function InspectionScreen() {
     setDefectPhotoUri(null);
   }
 
+  if (!jobId) return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Select a job to start inspecting.</Text>
+        <TouchableOpacity onPress={() => router.replace('/(inspector)/jobs')} style={styles.goBackBtn}>
+          <Text style={styles.goBackBtnText}>GO TO JOBS</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+
   if (!job) return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.loadingContainer}>
@@ -474,29 +485,31 @@ export default function InspectionScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* ── Barcode Scanner Modal ── */}
-      <Modal visible={showScanner} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
-          <View style={styles.scannerHeader}>
-            <Text style={styles.scannerTitle}>Scan Barcode / QR Code</Text>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowScanner(false)}>
-              <XIcon />
-            </TouchableOpacity>
-          </View>
-          <View style={{ flex: 1 }}>
-            <CameraView
-              style={{ flex: 1 }}
-              facing="back"
-              onBarcodeScanned={handleBarcodeScanned}
-              barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'code39', 'datamatrix', 'ean13', 'ean8'] }}
-            />
-            <View style={styles.scannerOverlay}>
-              <View style={styles.scannerFrame} />
-              <Text style={styles.scannerHint}>Align barcode within the frame</Text>
+      {/* ── Barcode Scanner Modal (native only) ── */}
+      {Platform.OS !== 'web' && (
+        <Modal visible={showScanner} animationType="slide" presentationStyle="fullScreen">
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
+            <View style={styles.scannerHeader}>
+              <Text style={styles.scannerTitle}>Scan Barcode / QR Code</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowScanner(false)}>
+                <XIcon />
+              </TouchableOpacity>
             </View>
-          </View>
-        </SafeAreaView>
-      </Modal>
+            <View style={{ flex: 1 }}>
+              <CameraView
+                style={{ flex: 1 }}
+                facing="back"
+                onBarcodeScanned={handleBarcodeScanned}
+                barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'code39', 'datamatrix', 'ean13', 'ean8'] }}
+              />
+              <View style={styles.scannerOverlay}>
+                <View style={styles.scannerFrame} />
+                <Text style={styles.scannerHint}>Align barcode within the frame</Text>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+      )}
 
       {/* ── Defect Logging Modal ── */}
       <Modal visible={showDefectForm} animationType="slide" presentationStyle="pageSheet">
@@ -678,8 +691,13 @@ function resultStyle(result: string) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: '#555', fontSize: 15 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20, paddingHorizontal: 32 },
+  loadingText: { color: '#555', fontSize: 15, textAlign: 'center' },
+  goBackBtn: {
+    backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12,
+    borderRadius: 8, marginTop: 8,
+  },
+  goBackBtnText: { color: Colors.white, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   header: {
     backgroundColor: '#0A0A0A',

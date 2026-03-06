@@ -74,13 +74,7 @@ export default function InspectorLayout() {
       />
       <Tabs.Screen name="job-detail" options={{ href: null }} />
       <Tabs.Screen name="new-job" options={{ href: null }} />
-      <Tabs.Screen
-        name="inspection"
-        options={{
-          title: 'Inspect',
-          tabBarIcon: ({ color }) => <ClipboardIcon color={color} />,
-        }}
-      />
+      <Tabs.Screen name="inspection" options={{ href: null }} />
       <Tabs.Screen
         name="reports"
         options={{

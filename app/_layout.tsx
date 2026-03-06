@@ -11,19 +11,22 @@ export default function RootLayout() {
 
     // Single source of truth for auth routing
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+      if (event === 'SIGNED_IN' && session) {
+        // New sign-in — route to correct screen based on role
         const { data: profile } = await supabase
           .from('users')
           .select('role')
           .eq('id', session.user.id)
           .single();
-
         const role = profile?.role ?? 'inspector';
         if (role === 'supervisor' || role === 'management') {
           router.replace('/(supervisor)');
         } else {
           router.replace('/(inspector)/jobs');
         }
+      } else if (event === 'INITIAL_SESSION' && !session) {
+        // No stored session — send to login
+        router.replace('/(auth)/login');
       } else if (event === 'SIGNED_OUT') {
         router.replace('/(auth)/login');
       }
