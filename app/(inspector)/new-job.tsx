@@ -60,35 +60,38 @@ export default function NewJobScreen() {
       return;
     }
     setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
-      Alert.alert('Session Expired', 'Please sign in again.');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        Alert.alert('Session Expired', 'Please sign in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+      const user = session.user;
+      const now = new Date().toISOString();
+      const job: Job = {
+        id: uuidv4(),
+        job_number: jobNumber,
+        client, rig, well,
+        field: field || undefined,
+        country,
+        standard: selectedStandard,
+        pipe_category: selectedCategory,
+        status: 'active',
+        created_by: user?.id ?? '',
+        assigned_inspectors: [user?.id ?? ''],
+        created_at: now,
+        updated_at: now,
+        notes: notes || undefined,
+      };
+      await saveJob(job);
+      supabase.from('jobs').insert(job).catch(e => console.warn('Remote sync pending:', e?.message));
+      router.back();
+    } catch (_) {
+      Alert.alert('Error', 'Failed to create job. Please try again.');
+    } finally {
       setSaving(false);
-      router.replace('/(auth)/login');
-      return;
     }
-    const user = session.user;
-    const now = new Date().toISOString();
-    const job: Job = {
-      id: uuidv4(),
-      job_number: jobNumber,
-      client, rig, well,
-      field: field || undefined,
-      country,
-      standard: selectedStandard,
-      pipe_category: selectedCategory,
-      status: 'active',
-      created_by: user?.id ?? '',
-      assigned_inspectors: [user?.id ?? ''],
-      created_at: now,
-      updated_at: now,
-      notes: notes || undefined,
-    };
-    await saveJob(job);
-    const { error: syncError } = await supabase.from('jobs').insert(job).catch(() => ({ data: null, error: new Error('offline') }));
-    if (syncError) console.warn('Remote sync pending (will retry when online):', syncError.message);
-    setSaving(false);
-    router.back();
   }
 
   return (

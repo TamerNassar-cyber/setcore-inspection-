@@ -58,12 +58,23 @@ export default function ProfileScreen() {
   const [savingCert, setSavingCert] = useState(false);
 
   async function loadProfile() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const authUser = session?.user;
-    if (!authUser) return;
-    const { data: profile } = await supabase.from('users').select('*').eq('id', authUser.id).single();
-    if (profile) setUser(profile);
-    await loadQuals(authUser.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUser = session?.user;
+      if (!authUser) return;
+      const [profileRes, qualsRes] = await Promise.all([
+        supabase.from('users').select('*').eq('id', authUser.id).single(),
+        supabase.from('qualifications').select('*').eq('inspector_id', authUser.id).order('expiry_date', { ascending: true }),
+      ]);
+      if (profileRes.data) setUser(profileRes.data);
+      if (qualsRes.data) {
+        setQualifications(qualsRes.data.map(q => ({
+          ...q,
+          days_until_expiry: differenceInDays(new Date(q.expiry_date), new Date()),
+          is_expired: new Date(q.expiry_date) < new Date(),
+        })));
+      }
+    } catch (_) {}
   }
 
   async function loadQuals(userId: string) {
@@ -110,28 +121,33 @@ export default function ProfileScreen() {
     if (new Date(expiryDate) <= new Date(issuedDate)) { Alert.alert('Invalid Dates', 'Expiry date must be after issued date.'); return; }
 
     setSavingCert(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) { setSavingCert(false); return; }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
 
-    const { error } = await supabase.from('qualifications').insert({
-      id: uuidv4(),
-      inspector_id: userId,
-      cert_type: certType,
-      cert_number: certNumber.trim(),
-      issued_date: issuedDate,
-      expiry_date: expiryDate,
-    });
+      const { error } = await supabase.from('qualifications').insert({
+        id: uuidv4(),
+        inspector_id: userId,
+        cert_type: certType,
+        cert_number: certNumber.trim(),
+        issued_date: issuedDate,
+        expiry_date: expiryDate,
+      });
 
-    setSavingCert(false);
-    if (error) {
-      Alert.alert('Error', error.message);
-      return;
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      setShowCertModal(false);
+      setCertType(''); setCertNumber(''); setIssuedDate(''); setExpiryDate('');
+      await loadQuals(userId);
+    } catch (_) {
+      Alert.alert('Error', 'Failed to save certification. Please try again.');
+    } finally {
+      setSavingCert(false);
     }
-
-    setShowCertModal(false);
-    setCertType(''); setCertNumber(''); setIssuedDate(''); setExpiryDate('');
-    await loadQuals(userId);
   }
 
   function certConfig(days: number, expired: boolean) {

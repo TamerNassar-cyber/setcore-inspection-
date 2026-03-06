@@ -42,9 +42,9 @@ export default function JobsScreen() {
   const [search, setSearch] = useState('');
 
   async function loadJobs() {
-    const local = await getJobs();
-    setJobs(local);
     try {
+      const local = await getJobs();
+      setJobs(local);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
       const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });

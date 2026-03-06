@@ -22,13 +22,15 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    setLoading(false);
-    if (error) {
-      Alert.alert('Login Failed', error.message);
-      return;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) Alert.alert('Login Failed', error.message);
+      // Routing is handled by onAuthStateChange in _layout.tsx
+    } catch (_) {
+      Alert.alert('Error', 'Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
     }
-    // Routing is handled by onAuthStateChange in _layout.tsx
   }
 
   async function handleRequestOtp() {
@@ -37,22 +39,27 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: false,
-        // Redirect back to the app root after clicking the magic link.
-        // Supabase will append the session token as a URL hash which the
-        // app processes automatically via detectSessionInUrl.
-        emailRedirectTo: 'https://setcore-inspection.netlify.app',
-      },
-    });
-    setLoading(false);
-    if (error) {
-      Alert.alert('Error', error.message);
-      return;
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: false,
+          // Redirect back to the app root after clicking the magic link.
+          // Supabase will append the session token as a URL hash which the
+          // app processes automatically via detectSessionInUrl.
+          emailRedirectTo: 'https://setcore-inspection.netlify.app',
+        },
+      });
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+      setMode('otp-verify');
+    } catch (_) {
+      Alert.alert('Error', 'Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
     }
-    setMode('otp-verify');
   }
 
   async function handleVerifyOtp() {
@@ -61,17 +68,19 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: otp.trim(),
-      type: 'email',
-    });
-    setLoading(false);
-    if (error) {
-      Alert.alert('Invalid Code', 'The code is incorrect or expired. Please try again.');
-      return;
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otp.trim(),
+        type: 'email',
+      });
+      if (error) Alert.alert('Invalid Code', 'The code is incorrect or expired. Please try again.');
+      // Routing is handled by onAuthStateChange in _layout.tsx
+    } catch (_) {
+      Alert.alert('Error', 'Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
     }
-    // Routing is handled by onAuthStateChange in _layout.tsx
   }
 
   return (

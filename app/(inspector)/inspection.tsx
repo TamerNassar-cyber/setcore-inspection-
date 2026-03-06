@@ -328,9 +328,8 @@ export default function InspectionScreen() {
       photo_url: photoUrl ?? null,
     };
 
-    try {
-      await supabase.from('defects').insert(defect);
-    } catch (_) {}
+    // Fire-and-forget — never block UI on network write
+    supabase.from('defects').insert(defect).catch(() => {});
 
     setSavingDefect(false);
     resetDefectForm();

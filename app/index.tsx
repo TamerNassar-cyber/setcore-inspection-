@@ -16,9 +16,14 @@ export default function Index() {
           router.replace('/(auth)/login');
           return;
         }
-        const { data: profile } = await supabase
-          .from('users').select('role').eq('id', session.user.id).single();
-        const role = profile?.role ?? 'inspector';
+        let role = 'inspector';
+        try {
+          const { data: profile } = await supabase
+            .from('users').select('role').eq('id', session.user.id).single();
+          role = profile?.role ?? 'inspector';
+        } catch (_) {
+          // Profile fetch failed — default to inspector so user isn't booted out
+        }
         if (role === 'supervisor' || role === 'management') {
           router.replace('/(supervisor)');
         } else {
