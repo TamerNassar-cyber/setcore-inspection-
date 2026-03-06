@@ -460,6 +460,12 @@ export default function InspectionScreen() {
         maxToRenderPerBatch={20}
         windowSize={10}
         removeClippedSubviews
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No joints inspected yet</Text>
+            <Text style={styles.emptyStateSubtext}>Tap ADD JOINT to begin</Text>
+          </View>
+        }
         ListFooterComponent={<View style={{ height: 100 }} />}
         renderItem={({ item: joint }) => {
           const { borderColor, badgeBg, badgeText, resultLabel } = resultStyle(joint.result);
@@ -802,7 +808,10 @@ const styles = StyleSheet.create({
   progressBar: { height: 4, flexDirection: 'row', marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', backgroundColor: '#1A1A1A' },
   progressSegment: { height: 4 },
 
-  jointList: { paddingHorizontal: 16, paddingTop: 12 },
+  jointList: { paddingHorizontal: 16, paddingTop: 12, flexGrow: 1 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyStateText: { fontSize: 16, fontWeight: '700', color: '#333', marginBottom: 6 },
+  emptyStateSubtext: { fontSize: 13, color: '#2A2A2A' },
   jointCard: {
     backgroundColor: '#161616',
     borderRadius: 10,

@@ -20,10 +20,11 @@ export async function getJobs(): Promise<Job[]> {
   const db = await getDb();
   if (!db) return []; // web — Supabase only
   const rows = await db.getAllAsync<any>('SELECT * FROM jobs ORDER BY created_at DESC');
-  return rows.map((r: any) => ({
-    ...r,
-    assigned_inspectors: JSON.parse(r.assigned_inspectors ?? '[]'),
-  }));
+  return rows.map((r: any) => {
+    let assigned_inspectors: string[] = [];
+    try { assigned_inspectors = JSON.parse(r.assigned_inspectors ?? '[]'); } catch (_) {}
+    return { ...r, assigned_inspectors };
+  });
 }
 
 export async function getJob(id: string): Promise<Job | null> {
@@ -31,7 +32,9 @@ export async function getJob(id: string): Promise<Job | null> {
   if (!db) return null; // web — Supabase only
   const row = await db.getFirstAsync<any>('SELECT * FROM jobs WHERE id = ?', [id]);
   if (!row) return null;
-  return { ...row, assigned_inspectors: JSON.parse(row.assigned_inspectors ?? '[]') };
+  let assigned_inspectors: string[] = [];
+  try { assigned_inspectors = JSON.parse(row.assigned_inspectors ?? '[]'); } catch (_) {}
+  return { ...row, assigned_inspectors };
 }
 
 export async function saveRun(run: InspectionRun): Promise<void> {
