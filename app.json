@@ -47,8 +47,7 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-barcode-scanner",
-      "expo-print"
+      "expo-barcode-scanner"
     ]
   }
 }
