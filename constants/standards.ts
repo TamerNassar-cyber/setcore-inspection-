@@ -12,6 +12,7 @@ export type StandardCode =
   | 'DS1_CAT2'
   | 'DS1_CAT3'
   | 'DS1_CAT4'
+  | 'DS1_CAT4_UT'
   | 'DS1_CAT5'
   | 'NS2'
   | 'ADNOC'
@@ -44,6 +45,7 @@ export const STANDARDS: Standard[] = [
   { code: 'DS1_CAT2', name: 'DS-1 Cat 2', fullName: 'TH Hill DS-1 Category 2', category: 'DRILL_STRING', description: 'Visual + dimensional inspection' },
   { code: 'DS1_CAT3', name: 'DS-1 Cat 3', fullName: 'TH Hill DS-1 Category 3', category: 'DRILL_STRING', description: 'Visual + dimensional + NDT' },
   { code: 'DS1_CAT4', name: 'DS-1 Cat 4', fullName: 'TH Hill DS-1 Category 4', category: 'DRILL_STRING', description: 'Full NDT inspection' },
+  { code: 'DS1_CAT4_UT', name: 'DS-1 Cat 4+UT', fullName: 'TH Hill DS-1 Category 4 + Ultrasonic Testing', category: 'DRILL_STRING', description: 'Full NDT inspection with Ultrasonic Testing' },
   { code: 'DS1_CAT5', name: 'DS-1 Cat 5', fullName: 'TH Hill DS-1 Category 5', category: 'DRILL_STRING', description: 'Most rigorous inspection' },
   // Downhole
   { code: 'API_11D1', name: 'API 11D1', fullName: 'API Specification 11D1', category: 'DOWNHOLE_TOOL', description: 'Packers and Bridge Plugs' },
