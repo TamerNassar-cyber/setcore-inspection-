@@ -41,7 +41,10 @@ export default function LoginScreen() {
       email: email.trim(),
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: undefined, // force numeric OTP code, not magic link
+        // Redirect back to the app root after clicking the magic link.
+        // Supabase will append the session token as a URL hash which the
+        // app processes automatically via detectSessionInUrl.
+        emailRedirectTo: 'https://setcore-inspection.netlify.app',
       },
     });
     setLoading(false);
@@ -54,14 +57,14 @@ export default function LoginScreen() {
 
   async function handleVerifyOtp() {
     if (!otp || otp.length < 6) {
-      Alert.alert('Error', 'Please enter the full code from your email.');
+      Alert.alert('Error', 'Please enter the full 6-digit code from your email.');
       return;
     }
     setLoading(true);
     const { data, error } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: otp.trim(),
-      type: 'magiclink',
+      type: 'email',
     });
     setLoading(false);
     if (error) {
@@ -176,11 +179,25 @@ export default function LoginScreen() {
         {/* OTP VERIFY MODE */}
         {mode === 'otp-verify' && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Enter Your Code</Text>
-            <Text style={styles.cardSubtitle}>Check your email — {email}</Text>
+            <Text style={styles.cardTitle}>Check Your Email</Text>
+            <Text style={styles.cardSubtitle}>A sign-in link has been sent to:</Text>
+            <Text style={styles.emailHighlight}>{email}</Text>
+
+            <View style={styles.linkInstructions}>
+              <Text style={styles.linkStep}>1. Open your email inbox</Text>
+              <Text style={styles.linkStep}>2. Find the email from Setcore / Supabase</Text>
+              <Text style={styles.linkStep}>3. Click the <Text style={{ fontWeight: '800' }}>Sign In</Text> link</Text>
+              <Text style={styles.linkStep}>4. You'll be logged in automatically</Text>
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>OR ENTER CODE</Text>
+              <View style={styles.separatorLine} />
+            </View>
 
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>6-DIGIT CODE</Text>
+              <Text style={styles.fieldLabel}>6-DIGIT CODE (if shown in email)</Text>
               <TextInput
                 style={[styles.input, styles.otpInput]}
                 value={otp}
@@ -194,16 +211,16 @@ export default function LoginScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.signInBtn, loading && styles.btnDisabled]}
+              style={[styles.signInBtn, (loading || otp.length < 6) && styles.btnDisabled]}
               onPress={handleVerifyOtp}
-              disabled={loading}
+              disabled={loading || otp.length < 6}
               activeOpacity={0.85}
             >
-              <Text style={styles.signInText}>{loading ? 'VERIFYING…' : 'VERIFY & SIGN IN'}</Text>
+              <Text style={styles.signInText}>{loading ? 'VERIFYING…' : 'VERIFY CODE'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.backBtn} onPress={() => { setMode('otp-request'); setOtp(''); }}>
-              <Text style={styles.backBtnText}>← Resend code</Text>
+              <Text style={styles.backBtnText}>← Resend email</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -241,6 +258,10 @@ const styles = StyleSheet.create({
   otpBtnText: { fontSize: 14, fontWeight: '600', color: '#374151' },
   backBtn: { alignItems: 'center', marginTop: 16 },
   backBtnText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  emailHighlight: { fontSize: 15, fontWeight: '700', color: Colors.black, textAlign: 'center', marginBottom: 20 },
+  linkInstructions: { backgroundColor: '#F3F4F6', borderRadius: 10, padding: 16, marginBottom: 20, gap: 8 },
+  linkStep: { fontSize: 14, color: '#374151', lineHeight: 20 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 },
   footer: { alignItems: 'center', paddingVertical: 32 },
   footerText: { fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: '600', letterSpacing: 0.5 },
   footerSub: { fontSize: 11, color: 'rgba(255,255,255,0.18)', marginTop: 4 },
