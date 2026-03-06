@@ -79,13 +79,14 @@ export default function NewJobScreen() {
       const user = session.user;
 
       // Ensure user profile row exists (FK required by jobs.created_by)
-      await supabase.from('users').upsert({
+      const { error: upsertErr } = await supabase.from('users').upsert({
         id: user.id,
         email: user.email ?? '',
         full_name: user.user_metadata?.full_name ?? user.email ?? '',
         role: user.user_metadata?.role ?? 'inspector',
         company: user.user_metadata?.company ?? 'Setcore Petroleum Services',
       }, { onConflict: 'id', ignoreDuplicates: true });
+      if (upsertErr) console.warn('User profile upsert:', upsertErr.code, upsertErr.message);
 
       const now = new Date().toISOString();
       const job: Job = {

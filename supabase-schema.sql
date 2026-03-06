@@ -107,6 +107,7 @@ ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
 -- Policies: authenticated users can read all, write their own
 CREATE POLICY "Users can view all" ON public.users FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update own" ON public.users FOR UPDATE TO authenticated USING (auth.uid() = id);
 
 CREATE POLICY "All authenticated can read jobs" ON public.jobs FOR SELECT TO authenticated USING (true);
