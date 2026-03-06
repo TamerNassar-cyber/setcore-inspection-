@@ -19,7 +19,7 @@ export async function saveJob(job: Job): Promise<void> {
 export async function getJobs(): Promise<Job[]> {
   const db = await getDb();
   if (!db) return []; // web — Supabase only
-  const rows = await db.getAllAsync<any>('SELECT * FROM jobs ORDER BY created_at DESC');
+  const rows: any[] = await db.getAllAsync('SELECT * FROM jobs ORDER BY created_at DESC');
   return rows.map((r: any) => {
     let assigned_inspectors: string[] = [];
     try { assigned_inspectors = JSON.parse(r.assigned_inspectors ?? '[]'); } catch (_) {}
@@ -30,7 +30,7 @@ export async function getJobs(): Promise<Job[]> {
 export async function getJob(id: string): Promise<Job | null> {
   const db = await getDb();
   if (!db) return null; // web — Supabase only
-  const row = await db.getFirstAsync<any>('SELECT * FROM jobs WHERE id = ?', [id]);
+  const row: any = await db.getFirstAsync('SELECT * FROM jobs WHERE id = ?', [id]);
   if (!row) return null;
   let assigned_inspectors: string[] = [];
   try { assigned_inspectors = JSON.parse(row.assigned_inspectors ?? '[]'); } catch (_) {}
@@ -54,14 +54,14 @@ export async function saveRun(run: InspectionRun): Promise<void> {
 export async function getRuns(jobId: string): Promise<InspectionRun[]> {
   const db = await getDb();
   if (!db) return [];
-  return await db.getAllAsync<InspectionRun>(
+  return await db.getAllAsync(
     'SELECT * FROM inspection_runs WHERE job_id = ? ORDER BY start_time DESC',
     [jobId]
-  );
+  ) as InspectionRun[];
 }
 
 export async function getRun(id: string): Promise<InspectionRun | null> {
   const db = await getDb();
   if (!db) return null;
-  return await db.getFirstAsync<InspectionRun>('SELECT * FROM inspection_runs WHERE id = ?', [id]);
+  return await db.getFirstAsync('SELECT * FROM inspection_runs WHERE id = ?', [id]) as InspectionRun | null;
 }

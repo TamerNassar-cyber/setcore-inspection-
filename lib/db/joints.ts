@@ -19,7 +19,7 @@ export async function saveJoint(joint: Joint): Promise<void> {
 export async function getJointsByRun(runId: string): Promise<Joint[]> {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.getAllAsync<any>(
+  const rows: any[] = await db.getAllAsync(
     'SELECT * FROM joints WHERE run_id = ? ORDER BY joint_number ASC',
     [runId]
   );
@@ -44,14 +44,14 @@ export async function saveDefect(defect: Defect): Promise<void> {
 export async function getDefectsByJoint(jointId: string): Promise<Defect[]> {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.getAllAsync<any>('SELECT * FROM defects WHERE joint_id = ?', [jointId]);
+  const rows: any[] = await db.getAllAsync('SELECT * FROM defects WHERE joint_id = ?', [jointId]);
   return rows.map((r: any) => ({ ...r, synced: !!r.synced }));
 }
 
 export async function getTally(runId: string) {
   const db = await getDb();
   if (!db) return { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 };
-  const row = await db.getFirstAsync<any>(
+  const row: any = await db.getFirstAsync(
     `SELECT
       COUNT(*) as total_joints,
       SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) as accepted,
@@ -74,7 +74,7 @@ export async function getTally(runId: string) {
 export async function getUnsyncedJoints(): Promise<Joint[]> {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.getAllAsync<any>('SELECT * FROM joints WHERE synced = 0');
+  const rows: any[] = await db.getAllAsync('SELECT * FROM joints WHERE synced = 0');
   return rows.map((r: any) => ({ ...r, synced: false }));
 }
 

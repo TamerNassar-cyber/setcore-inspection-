@@ -234,7 +234,7 @@ export default function InspectionScreen() {
       await saveJoint(joint);
 
       // Sync to Supabase in the background — never block the UI on a network call
-      supabase.from('joints').insert({ ...joint, synced: undefined }).catch(() => {});
+      supabase.from('joints').insert({ ...joint, synced: undefined }).then(undefined, () => {});
 
       // Update local state immediately
       const updated = await getJointsByRun(run.id);
@@ -365,7 +365,7 @@ export default function InspectionScreen() {
     };
 
     // Fire-and-forget — never block UI on network write
-    supabase.from('defects').insert(defect).catch(() => {});
+    supabase.from('defects').insert(defect).then(undefined, () => {});
 
     setSavingDefect(false);
     resetDefectForm();
