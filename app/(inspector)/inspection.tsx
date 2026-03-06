@@ -185,52 +185,60 @@ export default function InspectionScreen() {
   async function addJoint(result: InspectionResult) {
     if (!run) return;
     setSaving(true);
-    const joint: Joint = {
-      id: uuidv4(),
-      run_id: run.id,
-      joint_number: joints.length + 1,
-      serial_number: serial || undefined,
-      grade: grade || undefined,
-      weight: weight ? parseFloat(weight) : undefined,
-      od: od ? parseFloat(od) : undefined,
-      length: length ? parseFloat(length) : undefined,
-      result,
-      notes: notes || undefined,
-      inspected_at: new Date().toISOString(),
-      synced: false,
-    };
+    try {
+      const joint: Joint = {
+        id: uuidv4(),
+        run_id: run.id,
+        joint_number: joints.length + 1,
+        serial_number: serial || undefined,
+        grade: grade || undefined,
+        weight: weight ? parseFloat(weight) : undefined,
+        od: od ? parseFloat(od) : undefined,
+        length: length ? parseFloat(length) : undefined,
+        result,
+        notes: notes || undefined,
+        inspected_at: new Date().toISOString(),
+        synced: false,
+      };
 
-    await saveJoint(joint);
-    try { await supabase.from('joints').insert({ ...joint, synced: undefined }); } catch (_) {}
+      // Save locally first — this is instant
+      await saveJoint(joint);
 
-    const updated = await getJointsByRun(run.id);
-    if (updated.length > 0) {
-      setJoints(updated);
-      setTally(await getTally(run.id));
-    } else {
-      const newJoints = [...joints, joint];
-      setJoints(newJoints);
-      const t = newJoints.reduce((acc, j) => ({
-        total_joints: acc.total_joints + 1,
-        accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
-        failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
-        rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
-        total_length_m: acc.total_length_m + (j.length ?? 0),
-        total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
-      }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
-      setTally(t);
-    }
+      // Sync to Supabase in the background — never block the UI on a network call
+      supabase.from('joints').insert({ ...joint, synced: undefined }).catch(() => {});
 
-    // Reset joint form and close it
-    setGrade(''); setWeight(''); setOd(''); setLength(''); setSerial(''); setNotes('');
-    setSaving(false);
-    setShowJointForm(false);
+      // Update local state immediately
+      const updated = await getJointsByRun(run.id);
+      if (updated.length > 0) {
+        setJoints(updated);
+        setTally(await getTally(run.id));
+      } else {
+        const newJoints = [...joints, joint];
+        setJoints(newJoints);
+        const t = newJoints.reduce((acc, j) => ({
+          total_joints: acc.total_joints + 1,
+          accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
+          failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
+          rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
+          total_length_m: acc.total_length_m + (j.length ?? 0),
+          total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
+        }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
+        setTally(t);
+      }
 
-    // Auto-open defect form for FAIL / REJECT
-    if (result === 'FAIL' || result === 'REJECT') {
-      setPendingJointId(joint.id);
-      setPendingJointNum(joint.joint_number);
-      setShowDefectForm(true);
+      setGrade(''); setWeight(''); setOd(''); setLength(''); setSerial(''); setNotes('');
+      setShowJointForm(false);
+
+      if (result === 'FAIL' || result === 'REJECT') {
+        setPendingJointId(joint.id);
+        setPendingJointNum(joint.joint_number);
+        setShowDefectForm(true);
+      }
+    } catch (err) {
+      console.error('addJoint error:', err);
+      Alert.alert('Error', 'Failed to save joint. Please try again.');
+    } finally {
+      setSaving(false);
     }
   }
 
