@@ -9,9 +9,9 @@ export default function RootLayout() {
   useEffect(() => {
     initDb().catch(console.error);
 
-    // Handle auth state — routes user to correct screen on sign-in
+    // Single source of truth for auth routing
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         const { data: profile } = await supabase
           .from('users')
           .select('role')
@@ -24,6 +24,8 @@ export default function RootLayout() {
         } else {
           router.replace('/(inspector)/jobs');
         }
+      } else if (event === 'SIGNED_OUT') {
+        router.replace('/(auth)/login');
       }
     });
 

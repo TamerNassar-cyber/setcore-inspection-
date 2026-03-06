@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, Alert, TouchableOpacity, TextInput,
 } from 'react-native';
-import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
@@ -29,7 +28,7 @@ export default function LoginScreen() {
       Alert.alert('Login Failed', error.message);
       return;
     }
-    await redirectByRole(data.user.id);
+    // Routing is handled by onAuthStateChange in _layout.tsx
   }
 
   async function handleRequestOtp() {
@@ -69,18 +68,7 @@ export default function LoginScreen() {
       Alert.alert('Invalid Code', 'The code is incorrect or expired. Please try again.');
       return;
     }
-    await redirectByRole(data.user!.id);
-  }
-
-  async function redirectByRole(userId: string) {
-    const { data: profile } = await supabase
-      .from('users').select('role').eq('id', userId).single();
-    const role = profile?.role ?? 'inspector';
-    if (role === 'supervisor' || role === 'management') {
-      router.replace('/(supervisor)');
-    } else {
-      router.replace('/(inspector)/jobs');
-    }
+    // Routing is handled by onAuthStateChange in _layout.tsx
   }
 
   return (
