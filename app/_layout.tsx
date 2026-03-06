@@ -29,8 +29,12 @@ export default function RootLayout() {
           .eq('id', session.user.id)
           .single();
         const role = profile?.role ?? 'inspector';
-        if (role === 'supervisor' || role === 'management') {
+        if (role === 'management') {
+          router.replace('/(management)');
+        } else if (role === 'supervisor') {
           router.replace('/(supervisor)');
+        } else if (role === 'client') {
+          router.replace('/(client)');
         } else {
           router.replace('/(inspector)/jobs');
         }
