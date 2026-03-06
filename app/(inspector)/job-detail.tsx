@@ -66,46 +66,41 @@ export default function JobDetailScreen() {
     setLoading(true);
 
     try {
-      // Load job + session in parallel
-      const [localJob, { data: { session } }] = await Promise.all([
+      // Fire everything that doesn't have a dependency in one parallel batch
+      const [localJob, sessionRes, jobRes, runsRes, usersRes] = await Promise.all([
         getJob(jobId),
         supabase.auth.getSession(),
+        supabase.from('jobs').select('*').eq('id', jobId).single(),
+        supabase.from('inspection_runs').select('*').eq('job_id', jobId).order('start_time', { ascending: false }),
+        supabase.from('users').select('id,full_name,role'),
       ]);
 
-      let j = localJob;
-      if (!j) {
-        const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
-        j = data;
-      }
+      const j = localJob ?? jobRes.data;
       setJob(j);
 
+      const session = sessionRes.data.session;
+      const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u]));
       if (session?.user) {
-        const { data: profile } = await supabase.from('users').select('role').eq('id', session.user.id).single();
-        if (profile?.role) setUserRole(profile.role);
+        const me = userMap.get(session.user.id) as any;
+        if (me?.role) setUserRole(me.role);
       }
 
-      // Load runs + all users in parallel
-      const [runsRes, usersRes] = await Promise.all([
-        supabase.from('inspection_runs').select('*').eq('job_id', jobId).order('start_time', { ascending: false }),
-        supabase.from('users').select('id,full_name'),
-      ]);
-
       const runsData = runsRes.data ?? [];
-      const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]));
-      const runIds = runsData.map(r => r.id);
+      const runIds = runsData.map((r: any) => r.id);
 
-      // Batch load joints + defects for all runs
+      // Round 2: joints (needs run IDs from above)
       const { data: allJointsData } = runIds.length > 0
         ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', runIds)
         : { data: [] };
       const allJoints = (allJointsData ?? []) as any[];
 
-      const jointIds = allJoints.map(j => j.id);
+      // Round 3: defects (needs joint IDs from above)
+      const jointIds = allJoints.map((j: any) => j.id);
       const { data: allDefectsData } = jointIds.length > 0
-        ? await supabase.from('defects').select('id,joint_id', { count: 'exact' }).in('joint_id', jointIds)
-        : { data: [], count: 0 };
+        ? await supabase.from('defects').select('id,joint_id').in('joint_id', jointIds)
+        : { data: [] };
 
-      // Build Maps for O(1) lookups
+      // Build Maps and enrich in memory
       const jointsByRun = new Map<string, any[]>();
       for (const j of allJoints) {
         const arr = jointsByRun.get(j.run_id) ?? [];
@@ -117,7 +112,7 @@ export default function JobDetailScreen() {
         defectCountByJoint.set(d.joint_id, (defectCountByJoint.get(d.joint_id) ?? 0) + 1);
       }
 
-      const summaries: RunSummary[] = runsData.map(run => {
+      const summaries: RunSummary[] = runsData.map((run: any) => {
         const joints = jointsByRun.get(run.id) ?? [];
         const tally = joints.reduce((acc: any, j: any) => ({
           total_joints: acc.total_joints + 1,
@@ -127,11 +122,12 @@ export default function JobDetailScreen() {
           total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
         }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_ft: 0 });
 
-        const defect_count = joints.reduce((sum: number, j: any) => sum + (defectCountByJoint.get(j.id) ?? 0), 0);
+        const defect_count = joints.reduce((sum: number, j: any) =>
+          sum + (defectCountByJoint.get(j.id) ?? 0), 0);
 
         return {
           ...run,
-          inspector_name: userMap.get(run.inspector_id) ?? 'Inspector',
+          inspector_name: (userMap.get(run.inspector_id) as any)?.full_name ?? 'Inspector',
           ...tally,
           defect_count,
         } as RunSummary;

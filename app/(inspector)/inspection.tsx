@@ -104,69 +104,79 @@ export default function InspectionScreen() {
   async function loadData() {
     if (!jobId) return;
 
-    let j = await getJob(jobId);
-    if (!j) {
-      const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
-      j = data;
-    }
-    setJob(j);
+    try {
+      // Fire job + session in parallel (don't wait for one before starting the other)
+      const [localJob, sessionRes, jobFromSupabase] = await Promise.all([
+        getJob(jobId),
+        supabase.auth.getSession(),
+        supabase.from('jobs').select('*').eq('id', jobId).single(),
+      ]);
 
-    const { data: { session } } = await supabase.auth.getSession();
+      const j = localJob ?? jobFromSupabase.data;
+      setJob(j);
 
-    let currentRun: InspectionRun | null = null;
-    if (existingRunId) {
-      currentRun = await getRun(existingRunId);
-      if (!currentRun) {
-        const { data } = await supabase.from('inspection_runs').select('*').eq('id', existingRunId).single();
-        currentRun = data;
-      }
-    } else {
-      const newRun: InspectionRun = {
-        id: uuidv4(),
-        job_id: jobId,
-        inspector_id: session?.user?.id ?? '',
-        start_time: new Date().toISOString(),
-        status: 'active',
-      };
-      // Silently capture GPS location on native
-      if (Platform.OS !== 'web') {
-        try {
-          const Location = await import('expo-location');
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === 'granted') {
-            const loc = await Location.getCurrentPositionAsync({ accuracy: (Location as any).Accuracy?.Balanced ?? 4 });
-            newRun.location_lat = loc.coords.latitude;
-            newRun.location_lng = loc.coords.longitude;
-          }
-        } catch (_) {}
-      }
-      await saveRun(newRun);
-      try { await supabase.from('inspection_runs').insert(newRun); } catch (_) {}
-      currentRun = newRun;
-    }
-    setRun(currentRun);
+      const session = sessionRes.data.session;
 
-    if (currentRun) {
-      const localJoints = await getJointsByRun(currentRun.id);
-      if (localJoints.length > 0) {
-        setJoints(localJoints);
-        setTally(await getTally(currentRun.id));
+      let currentRun: InspectionRun | null = null;
+      if (existingRunId) {
+        const [localRun, remoteRunRes] = await Promise.all([
+          getRun(existingRunId),
+          supabase.from('inspection_runs').select('*').eq('id', existingRunId).single(),
+        ]);
+        currentRun = localRun ?? remoteRunRes.data;
       } else {
-        const { data: remoteJoints } = await supabase
-          .from('joints').select('*')
-          .eq('run_id', currentRun.id)
-          .order('joint_number', { ascending: true });
-        if (remoteJoints) setJoints(remoteJoints);
-        const t = remoteJoints?.reduce((acc: any, j: any) => ({
-          total_joints: acc.total_joints + 1,
-          accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
-          failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
-          rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
-          total_length_m: acc.total_length_m + (j.length ?? 0),
-          total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
-        }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
-        if (t) setTally(t);
+        const newRun: InspectionRun = {
+          id: uuidv4(),
+          job_id: jobId,
+          inspector_id: session?.user?.id ?? '',
+          start_time: new Date().toISOString(),
+          status: 'active',
+        };
+        if (Platform.OS !== 'web') {
+          try {
+            const Location = await import('expo-location');
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const loc = await Location.getCurrentPositionAsync({ accuracy: (Location as any).Accuracy?.Balanced ?? 4 });
+              newRun.location_lat = loc.coords.latitude;
+              newRun.location_lng = loc.coords.longitude;
+            }
+          } catch (_) {}
+        }
+        await saveRun(newRun);
+        // Fire-and-forget remote sync — don't block UI on this
+        supabase.from('inspection_runs').insert(newRun).catch(() => {});
+        currentRun = newRun;
       }
+      setRun(currentRun);
+
+      if (currentRun) {
+        const localJoints = await getJointsByRun(currentRun.id);
+        if (localJoints.length > 0) {
+          setJoints(localJoints);
+          setTally(await getTally(currentRun.id));
+        } else {
+          const { data: remoteJoints } = await supabase
+            .from('joints').select('*')
+            .eq('run_id', currentRun.id)
+            .order('joint_number', { ascending: true });
+          if (remoteJoints) setJoints(remoteJoints);
+          const t = remoteJoints?.reduce((acc: any, j: any) => ({
+            total_joints: acc.total_joints + 1,
+            accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
+            failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
+            rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
+            total_length_m: acc.total_length_m + (j.length ?? 0),
+            total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
+          }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
+          if (t) setTally(t);
+        }
+      }
+    } catch (err) {
+      console.error('Inspection loadData error:', err);
+      // setJob remains null → the "Loading inspection…" view will time out
+      // instead of spinning forever, we force-clear it after a brief delay
+      setTimeout(() => setJob(null as any), 0);
     }
   }
 
