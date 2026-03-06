@@ -35,11 +35,18 @@ function categoryLabel(cat: string) {
   return 'OCTG';
 }
 
+interface ExpiringCert {
+  cert_type: string;
+  days_until_expiry: number;
+}
+
 export default function JobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [expiringCerts, setExpiringCerts] = useState<ExpiringCert[]>([]);
+  const [certBannerDismissed, setCertBannerDismissed] = useState(false);
 
   async function loadJobs() {
     try {
@@ -60,7 +67,33 @@ export default function JobsScreen() {
     }
   }
 
-  useFocusEffect(useCallback(() => { loadJobs(); }, []));
+  async function loadCertWarnings() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data } = await supabase
+        .from('qualifications')
+        .select('cert_type, expiry_date')
+        .eq('inspector_id', session.user.id);
+      if (!data) return;
+      const today = new Date();
+      const expiring = data
+        .map(q => {
+          const expiry = new Date(q.expiry_date);
+          const days = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          return { cert_type: q.cert_type, days_until_expiry: days };
+        })
+        .filter(q => q.days_until_expiry <= 60)
+        .sort((a, b) => a.days_until_expiry - b.days_until_expiry);
+      setExpiringCerts(expiring);
+      if (expiring.length > 0) setCertBannerDismissed(false);
+    } catch (_) {}
+  }
+
+  useFocusEffect(useCallback(() => {
+    loadJobs();
+    loadCertWarnings();
+  }, []));
 
   const q = search.toLowerCase();
   const filtered = q
@@ -154,6 +187,29 @@ export default function JobsScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      {expiringCerts.length > 0 && !certBannerDismissed && (
+        <TouchableOpacity
+          style={[styles.certBanner, expiringCerts[0].days_until_expiry <= 30 ? styles.certBannerRed : styles.certBannerAmber]}
+          onPress={() => router.push('/(inspector)/profile')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.certBannerLeft}>
+            <Text style={styles.certBannerIcon}>⚠</Text>
+            <View>
+              <Text style={styles.certBannerTitle}>
+                {expiringCerts[0].cert_type} expires in {expiringCerts[0].days_until_expiry <= 0 ? 'EXPIRED' : `${expiringCerts[0].days_until_expiry} days`}
+              </Text>
+              {expiringCerts.length > 1 && (
+                <Text style={styles.certBannerSub}>+{expiringCerts.length - 1} more certification{expiringCerts.length - 1 > 1 ? 's' : ''} — tap to review</Text>
+              )}
+            </View>
+          </View>
+          <TouchableOpacity onPress={e => { e.stopPropagation?.(); setCertBannerDismissed(true); }} style={styles.certBannerDismiss}>
+            <Text style={styles.certBannerDismissText}>✕</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.subHeader}>
         <Text style={styles.pageTitle}>My Jobs</Text>
@@ -270,6 +326,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
+
+  certBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderLeftWidth: 4,
+  },
+  certBannerAmber: { backgroundColor: '#2B2200', borderLeftColor: '#F59E0B' },
+  certBannerRed: { backgroundColor: '#2B0D0D', borderLeftColor: '#DC2626' },
+  certBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  certBannerIcon: { fontSize: 18 },
+  certBannerTitle: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  certBannerSub: { fontSize: 11, color: '#888', marginTop: 2 },
+  certBannerDismiss: { padding: 6 },
+  certBannerDismissText: { fontSize: 14, color: '#555', fontWeight: '700' },
 
   subHeader: {
     flexDirection: 'row',

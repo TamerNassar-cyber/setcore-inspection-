@@ -6,18 +6,33 @@
     "orientation": "portrait",
     "scheme": "setcore-inspection",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A0A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.setcore.inspection",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is used to photograph joint defects during inspection.",
+        "NSPhotoLibraryUsageDescription": "Photo library is used to attach defect photos to inspection reports.",
+        "NSPhotoLibraryAddUsageDescription": "Used to save inspection photos.",
+        "NSLocationWhenInUseUsageDescription": "Location is used to GPS-tag inspection runs at the rig site."
+      }
     },
     "android": {
+      "package": "com.setcore.inspection",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0A0A0A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -32,7 +47,8 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-barcode-scanner"
+      "expo-barcode-scanner",
+      "expo-print"
     ]
   }
 }

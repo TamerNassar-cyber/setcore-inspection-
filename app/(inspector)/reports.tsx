@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   FlatList, TouchableOpacity, Modal, ScrollView,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
@@ -10,6 +10,10 @@ import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import Svg, { Path } from 'react-native-svg';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import { buildReportHtml } from '../../lib/pdf/reportTemplate';
 
 function XIcon() {
   return (
@@ -274,6 +278,80 @@ function ReportModal({ job, onClose }: { job: ReportJob; onClose: () => void }) 
 
   const allDefects = job.runs.flatMap(r => r.defects.map(d => ({ ...d, inspector: r.inspector_name })));
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      const html = buildReportHtml(job);
+      if (Platform.OS === 'web') {
+        await Print.printAsync({ html });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Export Inspection Report' });
+      }
+    } catch (e: any) {
+      Alert.alert('Export Failed', 'Could not generate PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  async function handleExportCsv() {
+    setExportingCsv(true);
+    try {
+      const runIds = job.runs.map(r => r.id);
+      let allJoints: any[] = [];
+      if (runIds.length > 0) {
+        const { data } = await supabase
+          .from('joints').select('*').in('run_id', runIds)
+          .order('run_id').order('joint_number', { ascending: true });
+        allJoints = data ?? [];
+      }
+      const runMap = new Map(job.runs.map((r, i) => [r.id, { name: r.inspector_name, num: i + 1 }]));
+      const rows: string[] = ['Run #,Joint #,Serial,Grade,Weight (ppf),OD (inches),Length (m),Result,Notes,Inspector,Date/Time'];
+      for (const j of allJoints) {
+        const run = runMap.get(j.run_id);
+        rows.push([
+          run?.num ?? '', j.joint_number, j.serial_number ?? '',
+          j.grade ?? '', j.weight ?? '', j.od ?? '', j.length ?? '',
+          j.result, (j.notes ?? '').replace(/,/g, ';'),
+          run?.name ?? '', new Date(j.inspected_at).toLocaleString('en-GB'),
+        ].join(','));
+      }
+      if (allDefects.length > 0) {
+        rows.push('', 'DEFECTS', 'Defect Type,Location,Severity,Description,Inspector');
+        for (const d of allDefects) {
+          rows.push([
+            formatDefectType(d.defect_type),
+            d.location ? formatLocation(d.location) : '',
+            d.severity.toUpperCase(),
+            (d.description ?? '').replace(/,/g, ';'),
+            d.inspector,
+          ].join(','));
+        }
+      }
+      const csv = rows.join('\n');
+      const fileName = `${job.job_number.replace(/[^a-zA-Z0-9]/g, '_')}_tally.csv`;
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const uri = `${FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Export Tally Sheet' });
+      }
+    } catch (e: any) {
+      Alert.alert('Export Failed', 'Could not export CSV. Please try again.');
+    } finally {
+      setExportingCsv(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.modalHeader}>
@@ -377,8 +455,28 @@ function ReportModal({ job, onClose }: { job: ReportJob; onClose: () => void }) 
           <Text style={styles.footerSub}>Generated {format(new Date(), 'dd MMMM yyyy HH:mm')}</Text>
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Export action bar */}
+      <View style={styles.exportRow}>
+        <TouchableOpacity
+          style={[styles.exportCsvBtn, exportingCsv && { opacity: 0.6 }]}
+          onPress={handleExportCsv}
+          disabled={exportingCsv || exportingPdf}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.exportCsvBtnText}>{exportingCsv ? 'EXPORTING…' : 'EXPORT CSV'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.exportPdfBtn, exportingPdf && { opacity: 0.6 }]}
+          onPress={handleExportPdf}
+          disabled={exportingPdf || exportingCsv}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.exportPdfBtnText}>{exportingPdf ? 'GENERATING…' : 'EXPORT PDF'}</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -548,4 +646,20 @@ const styles = StyleSheet.create({
   reportFooter: { alignItems: 'center', borderTopWidth: 1, borderTopColor: '#1A1A1A', paddingTop: 20, marginTop: 12 },
   footerLine: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.3)' },
   footerSub: { fontSize: 11, color: 'rgba(255,255,255,0.18)', marginTop: 4 },
+
+  exportRow: {
+    flexDirection: 'row', gap: 10, padding: 16,
+    backgroundColor: '#0A0A0A', borderTopWidth: 1, borderTopColor: '#1A1A1A',
+  },
+  exportCsvBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#2A2A2A', backgroundColor: '#161616', alignItems: 'center',
+  },
+  exportCsvBtnText: { color: '#888', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  exportPdfBtn: {
+    flex: 2, paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+    backgroundColor: Colors.primary,
+    shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5,
+  },
+  exportPdfBtnText: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
 });

@@ -24,8 +24,12 @@ export default function Index() {
         } catch (_) {
           // Profile fetch failed — default to inspector so user isn't booted out
         }
-        if (role === 'supervisor' || role === 'management') {
+        if (role === 'management') {
+          router.replace('/(management)');
+        } else if (role === 'supervisor') {
           router.replace('/(supervisor)');
+        } else if (role === 'client') {
+          router.replace('/(client)');
         } else {
           router.replace('/(inspector)/jobs');
         }
