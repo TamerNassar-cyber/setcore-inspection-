@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Alert, StatusBar,
+  TouchableOpacity, StatusBar,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -48,6 +48,7 @@ export default function NewJobScreen() {
   const [selectedCategory, setSelectedCategory] = useState<PipeCategory | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const categories: PipeCategory[] = ['OCTG', 'DRILL_STRING', 'DOWNHOLE_TOOL'];
   const filteredStandards = selectedCategory
@@ -55,44 +56,69 @@ export default function NewJobScreen() {
     : STANDARDS;
 
   async function handleCreate() {
-    if (!jobNumber || !client || !rig || !well || !country || !selectedStandard || !selectedCategory) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields and select a standard.');
+    setErrorMsg('');
+    if (!jobNumber.trim() || !client.trim() || !rig.trim() || !well.trim() || !country.trim()) {
+      setErrorMsg('Please fill in all required fields (Job Number, Client, Rig, Well, Country).');
+      return;
+    }
+    if (!selectedCategory) {
+      setErrorMsg('Please select a pipe category.');
+      return;
+    }
+    if (!selectedStandard) {
+      setErrorMsg('Please select an inspection standard.');
       return;
     }
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        Alert.alert('Session Expired', 'Please sign in again.');
+      if (!session?.user) {
         router.replace('/(auth)/login');
         return;
       }
       const user = session.user;
+
+      // Ensure user profile row exists (FK required by jobs.created_by)
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email ?? '',
+        full_name: user.user_metadata?.full_name ?? user.email ?? '',
+        role: user.user_metadata?.role ?? 'inspector',
+        company: user.user_metadata?.company ?? 'Setcore Petroleum Services',
+      }, { onConflict: 'id', ignoreDuplicates: true });
+
       const now = new Date().toISOString();
       const job: Job = {
         id: uuidv4(),
-        job_number: jobNumber,
-        client, rig, well,
-        field: field || undefined,
-        country,
+        job_number: jobNumber.trim(),
+        client: client.trim(),
+        rig: rig.trim(),
+        well: well.trim(),
+        field: field.trim() || undefined,
+        country: country.trim(),
         standard: selectedStandard,
         pipe_category: selectedCategory,
         status: 'active',
-        created_by: user?.id ?? '',
-        assigned_inspectors: [user?.id ?? ''],
+        created_by: user.id,
+        assigned_inspectors: [user.id],
         created_at: now,
         updated_at: now,
-        notes: notes || undefined,
+        notes: notes.trim() || undefined,
       };
-      saveJob(job).catch(() => {}); // local SQLite — fire-and-forget, no-op on web
+
+      saveJob(job).catch(() => {}); // local SQLite — no-op on web
+
       const { error } = await supabase.from('jobs').insert(job);
       if (error) {
-        Alert.alert('Error', 'Failed to save job. Please check your connection and try again.');
+        console.error('Job insert error:', error.code, error.message, error.details);
+        setErrorMsg(`Failed to save job: ${error.message}`);
         return;
       }
-      router.back();
-    } catch (_) {
-      Alert.alert('Error', 'Failed to create job. Please try again.');
+
+      router.replace('/(inspector)/jobs');
+    } catch (e: any) {
+      console.error('handleCreate exception:', e);
+      setErrorMsg('Unexpected error. Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -121,6 +147,12 @@ export default function NewJobScreen() {
           <Text style={styles.saveBtnText}>{saving ? 'SAVING…' : 'CREATE'}</Text>
         </TouchableOpacity>
       </View>
+
+      {errorMsg ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{errorMsg}</Text>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
@@ -204,6 +236,19 @@ export default function NewJobScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },
+
+  errorBanner: {
+    backgroundColor: '#2B0D0D',
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  errorBannerText: {
+    color: '#FCA5A5',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 
   header: {
     backgroundColor: '#0A0A0A',
