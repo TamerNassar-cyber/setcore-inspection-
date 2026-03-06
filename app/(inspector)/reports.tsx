@@ -4,7 +4,7 @@ import {
   FlatList, TouchableOpacity, Modal, ScrollView,
   RefreshControl, ActivityIndicator, Alert, Platform,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
@@ -68,7 +68,7 @@ export default function ReportsScreen() {
   async function loadReports() {
     try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setLoading(false); return; }
+    if (!session?.user) { router.replace('/(auth)/login'); return; }
 
     const userId = session.user.id;
     // Fire profile + all jobs in parallel — filter inspectors client-side

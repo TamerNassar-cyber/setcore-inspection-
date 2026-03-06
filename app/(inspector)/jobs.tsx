@@ -50,10 +50,10 @@ export default function JobsScreen() {
 
   async function loadJobs() {
     try {
-      const local = await getJobs();
+      const [local, sessionRes] = await Promise.all([getJobs(), supabase.auth.getSession()]);
       setJobs(local);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
+      const session = sessionRes.data.session;
+      if (!session?.user) { router.replace('/(auth)/login'); return; }
       const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
       if (data) {
         await Promise.all(data.map(job => saveJob(job)));
