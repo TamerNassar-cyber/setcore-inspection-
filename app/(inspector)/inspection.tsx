@@ -70,6 +70,7 @@ function ScanIcon() {
 
 export default function InspectionScreen() {
   const { jobId, runId: existingRunId } = useLocalSearchParams<{ jobId?: string; runId?: string }>();
+  const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<Job | null>(null);
   const [run, setRun] = useState<InspectionRun | null>(null);
   const [joints, setJoints] = useState<Joint[]>([]);
@@ -102,10 +103,13 @@ export default function InspectionScreen() {
   const [savingDefect, setSavingDefect] = useState(false);
 
   async function loadData() {
-    if (!jobId) return;
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      // Fire job + session in parallel (don't wait for one before starting the other)
+      // Fire job + session in parallel
       const [localJob, sessionRes, jobFromSupabase] = await Promise.all([
         getJob(jobId),
         supabase.auth.getSession(),
@@ -143,8 +147,7 @@ export default function InspectionScreen() {
             }
           } catch (_) {}
         }
-        await saveRun(newRun);
-        // Fire-and-forget remote sync — don't block UI on this
+        saveRun(newRun).catch(() => {}); // no-op on web
         supabase.from('inspection_runs').insert(newRun).catch(() => {});
         currentRun = newRun;
       }
@@ -174,9 +177,8 @@ export default function InspectionScreen() {
       }
     } catch (err) {
       console.error('Inspection loadData error:', err);
-      // setJob remains null → the "Loading inspection…" view will time out
-      // instead of spinning forever, we force-clear it after a brief delay
-      setTimeout(() => setJob(null as any), 0);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -346,22 +348,22 @@ export default function InspectionScreen() {
     setDefectPhotoUri(null);
   }
 
-  if (!jobId) return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Select a job to start inspecting.</Text>
-        <TouchableOpacity onPress={() => router.replace('/(inspector)/jobs')} style={styles.goBackBtn}>
-          <Text style={styles.goBackBtnText}>GO TO JOBS</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-
-  if (!job) return (
+  if (loading) return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={Colors.primary} size="large" />
         <Text style={styles.loadingText}>Loading inspection…</Text>
+      </View>
+    </SafeAreaView>
+  );
+
+  if (!jobId || !job) return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Job not found. Please go back and try again.</Text>
+        <TouchableOpacity onPress={() => router.replace('/(inspector)/jobs')} style={styles.goBackBtn}>
+          <Text style={styles.goBackBtnText}>GO TO JOBS</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
