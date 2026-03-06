@@ -76,6 +76,7 @@ export default function InspectionScreen() {
   const [joints, setJoints] = useState<Joint[]>([]);
   const [tally, setTally] = useState({ total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
   const [showJointForm, setShowJointForm] = useState(false);
+  const [lastSaved, setLastSaved] = useState<{ num: number; result: string } | null>(null);
 
   // Joint form fields
   const [grade, setGrade] = useState('');
@@ -228,14 +229,21 @@ export default function InspectionScreen() {
         setTally(t);
       }
 
+      // Clear fields for the next joint
       setGrade(''); setWeight(''); setOd(''); setLength(''); setSerial(''); setNotes('');
-      setShowJointForm(false);
+
+      // Show brief saved flash
+      setLastSaved({ num: joint.joint_number, result });
+      setTimeout(() => setLastSaved(null), 1500);
 
       if (result === 'FAIL' || result === 'REJECT') {
+        // Close joint form, open defect modal — resetDefectForm will reopen joint form
+        setShowJointForm(false);
         setPendingJointId(joint.id);
         setPendingJointNum(joint.joint_number);
         setShowDefectForm(true);
       }
+      // PASS: keep form open — fields are cleared and ready for the next joint
     } catch (err) {
       console.error('addJoint error:', err);
       Alert.alert('Error', 'Failed to save joint. Please try again.');
@@ -346,6 +354,8 @@ export default function InspectionScreen() {
     setDefectSeverity('');
     setDefectDescription('');
     setDefectPhotoUri(null);
+    // Auto-reopen joint form so inspector can immediately log the next joint
+    setShowJointForm(true);
   }
 
   if (loading) return (
@@ -455,6 +465,12 @@ export default function InspectionScreen() {
               <XIcon />
             </TouchableOpacity>
           </View>
+
+          {lastSaved && (
+            <View style={[styles.savedFlash, lastSaved.result === 'PASS' ? styles.savedFlashPass : lastSaved.result === 'FAIL' ? styles.savedFlashFail : styles.savedFlashReject]}>
+              <Text style={styles.savedFlashText}>✓ Joint #{lastSaved.num} saved as {lastSaved.result}</Text>
+            </View>
+          )}
 
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
             <View style={styles.formRow}>
@@ -774,6 +790,12 @@ const styles = StyleSheet.create({
     shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   fabText: { color: Colors.white, fontSize: 14, fontWeight: '800', letterSpacing: 2 },
+
+  savedFlash: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
+  savedFlashPass: { backgroundColor: '#0D2B1A' },
+  savedFlashFail: { backgroundColor: '#2B1A0D' },
+  savedFlashReject: { backgroundColor: '#2B0D0D' },
+  savedFlashText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
 
   // Shared modal
   modal: { flex: 1, backgroundColor: '#0F0F0F' },
