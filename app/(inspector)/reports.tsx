@@ -73,20 +73,58 @@ export default function ReportsScreen() {
     const { data: jobsData } = role === 'inspector'
       ? await supabase.from('jobs').select('*').eq('created_by', userId).order('created_at', { ascending: false })
       : await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-    if (!jobsData) { setLoading(false); setRefreshing(false); return; }
+    if (!jobsData || jobsData.length === 0) { setJobs([]); setLoading(false); setRefreshing(false); return; }
 
-    // Enrich with run data
-    const enriched = await Promise.all(jobsData.map(async (job) => {
-      const creatorRes = await supabase.from('users').select('full_name').eq('id', job.created_by).single();
+    const jobIds = jobsData.map(j => j.id);
 
-      const { data: runsData } = await supabase
-        .from('inspection_runs').select('*').eq('job_id', job.id).order('start_time', { ascending: true });
+    // Batch load everything in parallel — no N+1 queries
+    const [runsRes, usersRes] = await Promise.all([
+      supabase.from('inspection_runs').select('*').in('job_id', jobIds).order('start_time', { ascending: true }),
+      supabase.from('users').select('id,full_name'),
+    ]);
 
-      const runs: ReportRun[] = await Promise.all((runsData ?? []).map(async (run) => {
-        const inspectorRes = await supabase.from('users').select('full_name').eq('id', run.inspector_id).single();
-        const { data: joints } = await supabase.from('joints').select('id,result,length').eq('run_id', run.id);
+    const allRuns = runsRes.data ?? [];
+    const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]));
+    const runIds = allRuns.map(r => r.id);
 
-        const tally = (joints ?? []).reduce((acc: any, j: any) => ({
+    // Load joints and defects for all runs in 2 more queries
+    const { data: allJointsData } = runIds.length > 0
+      ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', runIds)
+      : { data: [] };
+    const allJoints = (allJointsData ?? []) as any[];
+
+    const jointIds = allJoints.map(j => j.id);
+    const { data: allDefectsData } = jointIds.length > 0
+      ? await supabase.from('defects').select('id,joint_id,defect_type,location,severity,description').in('joint_id', jointIds)
+      : { data: [] };
+
+    // Build lookup maps for O(1) enrichment
+    const jointsByRun = new Map<string, any[]>();
+    for (const j of allJoints) {
+      const arr = jointsByRun.get(j.run_id) ?? [];
+      arr.push(j);
+      jointsByRun.set(j.run_id, arr);
+    }
+
+    const defectsByJoint = new Map<string, ReportDefect[]>();
+    for (const d of (allDefectsData ?? []) as any[]) {
+      const arr = defectsByJoint.get(d.joint_id) ?? [];
+      arr.push(d as ReportDefect);
+      defectsByJoint.set(d.joint_id, arr);
+    }
+
+    const runsByJob = new Map<string, any[]>();
+    for (const r of allRuns) {
+      const arr = runsByJob.get(r.job_id) ?? [];
+      arr.push(r);
+      runsByJob.set(r.job_id, arr);
+    }
+
+    // Enrich in memory — no more queries needed
+    const enriched: ReportJob[] = jobsData.map(job => {
+      const jobRuns: ReportRun[] = (runsByJob.get(job.id) ?? []).map(run => {
+        const joints = jointsByRun.get(run.id) ?? [];
+        const tally = joints.reduce((acc: any, j: any) => ({
           total_joints: acc.total_joints + 1,
           accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
           failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
@@ -94,31 +132,22 @@ export default function ReportsScreen() {
           total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
         }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_ft: 0 });
 
-        // Load defects for this run's joints
-        const jointIds = (joints ?? []).map((j: any) => j.id);
-        let defects: ReportDefect[] = [];
-        if (jointIds.length > 0) {
-          const { data: defectsData } = await supabase
-            .from('defects')
-            .select('id,defect_type,location,severity,description')
-            .in('joint_id', jointIds);
-          defects = defectsData ?? [];
-        }
+        const defects: ReportDefect[] = joints.flatMap((j: any) => defectsByJoint.get(j.id) ?? []);
 
         return {
           ...run,
-          inspector_name: inspectorRes.data?.full_name ?? 'Inspector',
+          inspector_name: userMap.get(run.inspector_id) ?? 'Inspector',
           ...tally,
           defects,
         };
-      }));
+      });
 
       return {
         ...job,
-        creator_name: creatorRes.data?.full_name ?? 'Inspector',
-        runs,
+        creator_name: userMap.get(job.created_by) ?? 'Inspector',
+        runs: jobRuns,
       } as ReportJob;
-    }));
+    });
 
     setJobs(enriched);
     setLoading(false);

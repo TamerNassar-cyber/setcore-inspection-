@@ -133,9 +133,10 @@ export default function JobDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           setCompleting(true);
-          await supabase.from('jobs').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', jobId);
-          setJob(prev => prev ? { ...prev, status: 'completed' } : prev);
+          const { error } = await supabase.from('jobs').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', jobId);
           setCompleting(false);
+          if (error) { Alert.alert('Error', 'Failed to update job. Please try again.'); return; }
+          setJob(prev => prev ? { ...prev, status: 'completed' } : prev);
           Alert.alert('Job Complete', 'The job has been submitted for supervisor approval.');
         }
       }
@@ -149,9 +150,10 @@ export default function JobDetailScreen() {
         text: 'Approve',
         onPress: async () => {
           setApproving(true);
-          await supabase.from('jobs').update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', jobId);
-          setJob(prev => prev ? { ...prev, status: 'approved' } : prev);
+          const { error } = await supabase.from('jobs').update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', jobId);
           setApproving(false);
+          if (error) { Alert.alert('Error', 'Failed to approve job. Please try again.'); return; }
+          setJob(prev => prev ? { ...prev, status: 'approved' } : prev);
           Alert.alert('Approved', 'The job has been approved.');
         }
       }

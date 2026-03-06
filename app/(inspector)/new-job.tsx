@@ -85,7 +85,8 @@ export default function NewJobScreen() {
       notes: notes || undefined,
     };
     await saveJob(job);
-    try { await supabase.from('jobs').insert(job); } catch (_) {}
+    const { error: syncError } = await supabase.from('jobs').insert(job).catch(() => ({ data: null, error: new Error('offline') }));
+    if (syncError) console.warn('Remote sync pending (will retry when online):', syncError.message);
     setSaving(false);
     router.back();
   }

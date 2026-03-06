@@ -15,8 +15,13 @@ export default function ResetPasswordScreen() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Listen for the auth state — when the magic link / reset link is clicked,
-    // Supabase automatically signs the user in via the URL hash token.
+    // On web, the auth event may fire before this component mounts (hash
+    // is processed immediately on page load). Check current session first
+    // as a fallback so the "Verifying…" state never hangs.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setReady(true);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         setReady(true);
