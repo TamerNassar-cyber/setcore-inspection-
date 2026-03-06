@@ -62,65 +62,87 @@ export default function JobDetailScreen() {
   const [completing, setCompleting] = useState(false);
 
   async function loadData() {
-    if (!jobId) return;
+    if (!jobId) { setLoading(false); return; }
     setLoading(true);
 
-    // Load job
-    let j = await getJob(jobId);
-    if (!j) {
-      const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
-      j = data;
-    }
-    setJob(j);
-
-    // Get current user role
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const { data: profile } = await supabase.from('users').select('role').eq('id', session.user.id).single();
-      if (profile?.role) setUserRole(profile.role);
-    }
-
-    // Load runs with joint tallies
-    const { data: runsData } = await supabase
-      .from('inspection_runs')
-      .select('*')
-      .eq('job_id', jobId)
-      .order('start_time', { ascending: false });
-
-    if (!runsData) { setLoading(false); return; }
-
-    // For each run: get joints + defect count + inspector name
-    const summaries = await Promise.all(runsData.map(async (run) => {
-      const [jointsResult, inspectorResult] = await Promise.all([
-        supabase.from('joints').select('id,result,length').eq('run_id', run.id),
-        supabase.from('users').select('full_name').eq('id', run.inspector_id).single(),
+    try {
+      // Load job + session in parallel
+      const [localJob, { data: { session } }] = await Promise.all([
+        getJob(jobId),
+        supabase.auth.getSession(),
       ]);
 
-      const joints = jointsResult.data ?? [];
-      const jointIds = joints.map((j: any) => j.id);
+      let j = localJob;
+      if (!j) {
+        const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
+        j = data;
+      }
+      setJob(j);
 
-      const defectsResult = jointIds.length > 0
-        ? await supabase.from('defects').select('id', { count: 'exact', head: true }).in('joint_id', jointIds)
-        : { count: 0 };
+      if (session?.user) {
+        const { data: profile } = await supabase.from('users').select('role').eq('id', session.user.id).single();
+        if (profile?.role) setUserRole(profile.role);
+      }
 
-      const tally = joints.reduce((acc: any, j: any) => ({
-        total_joints: acc.total_joints + 1,
-        accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
-        failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
-        rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
-        total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
-      }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_ft: 0 });
+      // Load runs + all users in parallel
+      const [runsRes, usersRes] = await Promise.all([
+        supabase.from('inspection_runs').select('*').eq('job_id', jobId).order('start_time', { ascending: false }),
+        supabase.from('users').select('id,full_name'),
+      ]);
 
-      return {
-        ...run,
-        inspector_name: inspectorResult.data?.full_name ?? 'Inspector',
-        ...tally,
-        defect_count: defectsResult.count ?? 0,
-      } as RunSummary;
-    }));
+      const runsData = runsRes.data ?? [];
+      const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]));
+      const runIds = runsData.map(r => r.id);
 
-    setRuns(summaries);
-    setLoading(false);
+      // Batch load joints + defects for all runs
+      const { data: allJointsData } = runIds.length > 0
+        ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', runIds)
+        : { data: [] };
+      const allJoints = (allJointsData ?? []) as any[];
+
+      const jointIds = allJoints.map(j => j.id);
+      const { data: allDefectsData } = jointIds.length > 0
+        ? await supabase.from('defects').select('id,joint_id', { count: 'exact' }).in('joint_id', jointIds)
+        : { data: [], count: 0 };
+
+      // Build Maps for O(1) lookups
+      const jointsByRun = new Map<string, any[]>();
+      for (const j of allJoints) {
+        const arr = jointsByRun.get(j.run_id) ?? [];
+        arr.push(j);
+        jointsByRun.set(j.run_id, arr);
+      }
+      const defectCountByJoint = new Map<string, number>();
+      for (const d of (allDefectsData ?? []) as any[]) {
+        defectCountByJoint.set(d.joint_id, (defectCountByJoint.get(d.joint_id) ?? 0) + 1);
+      }
+
+      const summaries: RunSummary[] = runsData.map(run => {
+        const joints = jointsByRun.get(run.id) ?? [];
+        const tally = joints.reduce((acc: any, j: any) => ({
+          total_joints: acc.total_joints + 1,
+          accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),
+          failed: acc.failed + (j.result === 'FAIL' ? 1 : 0),
+          rejected: acc.rejected + (j.result === 'REJECT' ? 1 : 0),
+          total_length_ft: acc.total_length_ft + (j.length ?? 0) * 3.28084,
+        }), { total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_ft: 0 });
+
+        const defect_count = joints.reduce((sum: number, j: any) => sum + (defectCountByJoint.get(j.id) ?? 0), 0);
+
+        return {
+          ...run,
+          inspector_name: userMap.get(run.inspector_id) ?? 'Inspector',
+          ...tally,
+          defect_count,
+        } as RunSummary;
+      });
+
+      setRuns(summaries);
+    } catch (err) {
+      console.error('Failed to load job detail:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { loadData(); }, [jobId]);
@@ -179,7 +201,18 @@ export default function JobDetailScreen() {
     );
   }
 
-  if (!job) return null;
+  if (!job) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Job not found.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
+            <Text style={{ color: Colors.primary, fontWeight: '700' }}>← Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const canInspect = userRole === 'inspector' || userRole === 'supervisor' || userRole === 'management';
   const canComplete = canInspect && job.status === 'active';
