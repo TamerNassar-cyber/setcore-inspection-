@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, StatusBar, Modal, TextInput, Alert,
+  TouchableOpacity, StatusBar, Modal, TextInput, Alert, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { format, differenceInDays } from 'date-fns';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
@@ -46,6 +46,7 @@ function ShieldIcon({ color }: { color: string }) {
 }
 
 export default function ProfileScreen() {
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [qualifications, setQualifications] = useState<Qualification[]>([]);
 
@@ -58,6 +59,7 @@ export default function ProfileScreen() {
   const [savingCert, setSavingCert] = useState(false);
 
   async function loadProfile() {
+    setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const authUser = session?.user;
@@ -74,7 +76,10 @@ export default function ProfileScreen() {
           is_expired: new Date(q.expiry_date) < new Date(),
         })));
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function loadQuals(userId: string) {
@@ -91,7 +96,7 @@ export default function ProfileScreen() {
     }
   }
 
-  useEffect(() => { loadProfile(); }, []);
+  useFocusEffect(useCallback(() => { loadProfile(); }, []));
 
   function handleSignOut() {
     Alert.alert(
@@ -160,6 +165,14 @@ export default function ProfileScreen() {
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : '?';
+
+  if (loading) return (
+    <SafeAreaView style={styles.safe}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={Colors.primary} size="large" />
+      </View>
+    </SafeAreaView>
+  );
 
   return (
     <SafeAreaView style={styles.safe}>

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   FlatList, TouchableOpacity, Modal, ScrollView,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
@@ -159,7 +160,7 @@ export default function ReportsScreen() {
     }
   }
 
-  useEffect(() => { loadReports(); }, []);
+  useFocusEffect(useCallback(() => { loadReports(); }, []));
 
   function renderJobCard({ item }: { item: ReportJob }) {
     const totalJoints = item.runs.reduce((a, r) => a + r.total_joints, 0);
