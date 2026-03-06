@@ -1,0 +1,13 @@
+[build]
+  command = "npx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  EXPO_PUBLIC_SUPABASE_URL = "https://lzclwevvexvvwhfvswhq.supabase.co"
+  EXPO_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_AB1KJ6tnnMwPd9tIqAPFPQ_ZkO-Qm8-"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
