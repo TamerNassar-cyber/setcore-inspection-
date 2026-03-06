@@ -71,80 +71,78 @@ export default function SupervisorDashboard() {
   const [userName, setUserName] = useState('');
 
   async function loadData() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setLoading(false); return; }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) { setLoading(false); return; }
 
-    // Get current user info
-    const { data: profile } = await supabase.from('users').select('full_name,role').eq('id', session.user.id).single();
-    if (profile) {
-      setUserName(profile.full_name);
-      setUserRole(profile.role);
+      // Load everything in parallel
+      const [profileRes, jobsRes, allRunsRes, allUsersRes] = await Promise.all([
+        supabase.from('users').select('full_name,role').eq('id', session.user.id).single(),
+        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+        supabase.from('inspection_runs').select('id,job_id'),
+        supabase.from('users').select('id,full_name'),
+      ]);
+
+      if (profileRes.data) {
+        setUserName(profileRes.data.full_name);
+        setUserRole(profileRes.data.role);
+      }
+
+      const jobsData = jobsRes.data;
+      if (!jobsData) return;
+
+      const userMap = new Map((allUsersRes.data ?? []).map(u => [u.id, u.full_name]));
+      const runsByJob = new Map<string, string[]>();
+      for (const run of allRunsRes.data ?? []) {
+        const arr = runsByJob.get(run.job_id) ?? [];
+        arr.push(run.id);
+        runsByJob.set(run.job_id, arr);
+      }
+
+      const allRunIds = (allRunsRes.data ?? []).map(r => r.id);
+      const { data: allJointsData } = allRunIds.length > 0
+        ? await supabase.from('joints').select('id,run_id').in('run_id', allRunIds)
+        : { data: [] };
+
+      const allJoints = allJointsData ?? [];
+      const jointsByRun = new Map<string, string[]>();
+      for (const j of allJoints) {
+        const arr = jointsByRun.get(j.run_id) ?? [];
+        arr.push(j.id);
+        jointsByRun.set(j.run_id, arr);
+      }
+
+      const allJointIds = allJoints.map(j => j.id);
+      const { data: defectsData } = allJointIds.length > 0
+        ? await supabase.from('defects').select('id,joint_id').in('joint_id', allJointIds)
+        : { data: [] };
+
+      const defectsByJoint = new Map<string, number>();
+      for (const d of defectsData ?? []) {
+        defectsByJoint.set(d.joint_id, (defectsByJoint.get(d.joint_id) ?? 0) + 1);
+      }
+
+      const enriched: JobRow[] = jobsData.map(job => {
+        const runIds = runsByJob.get(job.id) ?? [];
+        const jointIds = runIds.flatMap(rid => jointsByRun.get(rid) ?? []);
+        const total_joints = jointIds.length;
+        const defect_count = jointIds.reduce((sum, jid) => sum + (defectsByJoint.get(jid) ?? 0), 0);
+        return {
+          ...job,
+          creator_name: userMap.get(job.created_by) ?? 'Inspector',
+          run_count: runIds.length,
+          total_joints,
+          defect_count,
+        } as JobRow;
+      });
+
+      setJobs(enriched);
+    } catch (err) {
+      console.error('Supervisor loadData error:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    // Load all jobs + all runs + all users in 3 parallel queries (no N+1)
-    const [jobsRes, allRunsRes, allUsersRes] = await Promise.all([
-      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
-      supabase.from('inspection_runs').select('id,job_id'),
-      supabase.from('users').select('id,full_name'),
-    ]);
-
-    const jobsData = jobsRes.data;
-    if (!jobsData) { setLoading(false); setRefreshing(false); return; }
-
-    // Build lookup maps
-    const userMap = new Map((allUsersRes.data ?? []).map(u => [u.id, u.full_name]));
-    const runsByJob = new Map<string, string[]>();
-    for (const run of allRunsRes.data ?? []) {
-      const arr = runsByJob.get(run.job_id) ?? [];
-      arr.push(run.id);
-      runsByJob.set(run.job_id, arr);
-    }
-
-    // Fetch joint and defect counts for all runs in 2 queries
-    const allRunIds = (allRunsRes.data ?? []).map(r => r.id);
-    const [allJointsRes] = await Promise.all([
-      allRunIds.length > 0
-        ? supabase.from('joints').select('id,run_id').in('run_id', allRunIds)
-        : Promise.resolve({ data: [] }),
-    ]);
-
-    const allJoints = allJointsRes.data ?? [];
-    const jointsByRun = new Map<string, string[]>();
-    for (const j of allJoints) {
-      const arr = jointsByRun.get(j.run_id) ?? [];
-      arr.push(j.id);
-      jointsByRun.set(j.run_id, arr);
-    }
-
-    const allJointIds = allJoints.map(j => j.id);
-    const defectsRes = allJointIds.length > 0
-      ? await supabase.from('defects').select('id,joint_id').in('joint_id', allJointIds)
-      : { data: [] };
-
-    const defectsByJoint = new Map<string, number>();
-    for (const d of defectsRes.data ?? []) {
-      defectsByJoint.set(d.joint_id, (defectsByJoint.get(d.joint_id) ?? 0) + 1);
-    }
-
-    // Enrich jobs using the preloaded maps
-    const enriched: JobRow[] = jobsData.map(job => {
-      const runIds = runsByJob.get(job.id) ?? [];
-      const jointIds = runIds.flatMap(rid => jointsByRun.get(rid) ?? []);
-      const total_joints = jointIds.length;
-      const defect_count = jointIds.reduce((sum, jid) => sum + (defectsByJoint.get(jid) ?? 0), 0);
-
-      return {
-        ...job,
-        creator_name: userMap.get(job.created_by) ?? 'Inspector',
-        run_count: runIds.length,
-        total_joints,
-        defect_count,
-      } as JobRow;
-    });
-
-    setJobs(enriched);
-    setLoading(false);
-    setRefreshing(false);
   }
 
   useEffect(() => { loadData(); }, []);

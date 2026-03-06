@@ -61,6 +61,7 @@ export default function ReportsScreen() {
   const [selectedJob, setSelectedJob] = useState<ReportJob | null>(null);
 
   async function loadReports() {
+    try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { setLoading(false); return; }
 
@@ -150,8 +151,12 @@ export default function ReportsScreen() {
     });
 
     setJobs(enriched);
-    setLoading(false);
-    setRefreshing(false);
+    } catch (err) {
+      console.error('loadReports error:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => { loadReports(); }, []);
