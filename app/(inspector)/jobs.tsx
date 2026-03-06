@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, RefreshControl, StatusBar, TextInput,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { saveJob, getJobs } from '../../lib/db/jobs';
@@ -60,7 +60,7 @@ export default function JobsScreen() {
     }
   }
 
-  useEffect(() => { loadJobs(); }, []);
+  useFocusEffect(useCallback(() => { loadJobs(); }, []));
 
   const q = search.toLowerCase();
   const filtered = q
