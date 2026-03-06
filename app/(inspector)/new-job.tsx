@@ -84,8 +84,12 @@ export default function NewJobScreen() {
         updated_at: now,
         notes: notes || undefined,
       };
-      await saveJob(job);
-      supabase.from('jobs').insert(job).catch(e => console.warn('Remote sync pending:', e?.message));
+      saveJob(job).catch(() => {}); // local SQLite — fire-and-forget, no-op on web
+      const { error } = await supabase.from('jobs').insert(job);
+      if (error) {
+        Alert.alert('Error', 'Failed to save job. Please check your connection and try again.');
+        return;
+      }
       router.back();
     } catch (_) {
       Alert.alert('Error', 'Failed to create job. Please try again.');
