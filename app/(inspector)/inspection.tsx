@@ -77,6 +77,10 @@ export default function InspectionScreen() {
   const [tally, setTally] = useState({ total_joints: 0, accepted: 0, failed: 0, rejected: 0, total_length_m: 0, total_length_ft: 0 });
   const [showJointForm, setShowJointForm] = useState(false);
   const [lastSaved, setLastSaved] = useState<{ num: number; result: string } | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up saved-flash timer on unmount
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); }, []);
 
   // Joint form fields
   const [grade, setGrade] = useState('');
@@ -234,7 +238,7 @@ export default function InspectionScreen() {
       await saveJoint(joint);
 
       // Sync to Supabase in the background — never block the UI on a network call
-      supabase.from('joints').insert({ ...joint, synced: undefined }).then(undefined, () => {});
+      supabase.from('joints').insert({ ...joint, synced: undefined }).then(undefined, (e) => console.warn('Joint sync failed:', e));
 
       // Update local state immediately
       const updated = await getJointsByRun(run.id);
@@ -260,7 +264,8 @@ export default function InspectionScreen() {
 
       // Show brief saved flash
       setLastSaved({ num: joint.joint_number, result });
-      setTimeout(() => setLastSaved(null), 1500);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setLastSaved(null), 1500);
 
       if (result === 'FAIL' || result === 'REJECT') {
         // Close joint form, open defect modal — resetDefectForm will reopen joint form
@@ -365,7 +370,7 @@ export default function InspectionScreen() {
     };
 
     // Fire-and-forget — never block UI on network write
-    supabase.from('defects').insert(defect).then(undefined, () => {});
+    supabase.from('defects').insert(defect).then(undefined, (e) => console.warn('Defect sync failed:', e));
 
     setSavingDefect(false);
     resetDefectForm();

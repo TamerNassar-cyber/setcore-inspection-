@@ -76,7 +76,7 @@ export default function ReportsScreen() {
       supabase.from('users').select('role').eq('id', userId).single(),
       supabase.from('jobs').select('*').order('created_at', { ascending: false }),
     ]);
-    const role = (profileRes.data as any)?.role ?? 'inspector';
+    const role = profileRes.data?.role ?? 'inspector';
     const jobsData = role === 'inspector'
       ? (allJobsRes.data ?? []).filter((j: any) => j.created_by === userId)
       : (allJobsRes.data ?? []);

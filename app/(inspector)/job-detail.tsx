@@ -81,7 +81,7 @@ export default function JobDetailScreen() {
       const session = sessionRes.data.session;
       const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u]));
       if (session?.user) {
-        const me = userMap.get(session.user.id) as any;
+        const me = userMap.get(session.user.id);
         if (me?.role) setUserRole(me.role);
       }
 
@@ -127,7 +127,7 @@ export default function JobDetailScreen() {
 
         return {
           ...run,
-          inspector_name: (userMap.get(run.inspector_id) as any)?.full_name ?? 'Inspector',
+          inspector_name: userMap.get(run.inspector_id)?.full_name ?? 'Inspector',
           ...tally,
           defect_count,
         } as RunSummary;
