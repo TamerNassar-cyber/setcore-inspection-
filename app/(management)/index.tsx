@@ -6,6 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import Svg, { Path } from 'react-native-svg';
@@ -39,7 +40,7 @@ interface RecentJob {
   client: string;
   rig: string;
   status: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export default function ManagementDashboard() {
@@ -333,7 +334,7 @@ export default function ManagementDashboard() {
             <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
             <View style={styles.card}>
               {recentJobs.map((j, idx) => {
-                const sc = statusConfig(j.status);
+                const sc = jobStatusConfig(j.status);
                 return (
                   <TouchableOpacity
                     key={j.id}
@@ -373,14 +374,6 @@ function KpiCard({ label, value, color }: { label: string; value: number; color:
   );
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E' };
-    case 'completed': return { label: 'REVIEW',    bg: '#1A1F2E', text: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF' };
-  }
-}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },

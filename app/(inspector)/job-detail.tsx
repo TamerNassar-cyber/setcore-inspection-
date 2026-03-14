@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import { getJob } from '../../lib/db/jobs';
 import type { Job } from '../../types';
@@ -75,7 +76,7 @@ export default function JobDetailScreen() {
         supabase.from('users').select('id,full_name,role'),
       ]);
 
-      const j = localJob ?? jobRes.data;
+      const j = localJob ?? (jobRes.data as Job | null);
       setJob(j);
 
       const session = sessionRes.data.session;
@@ -213,7 +214,7 @@ export default function JobDetailScreen() {
   const canInspect = userRole === 'inspector' || userRole === 'supervisor' || userRole === 'management';
   const canComplete = canInspect && job.status === 'active';
   const canApprove = (userRole === 'supervisor' || userRole === 'management') && job.status === 'completed';
-  const jobStatusConfig = statusConfig(job.status);
+  const sc = jobStatusConfig(job.status);
 
   // Totals across all runs
   const grandTotal = runs.reduce((acc, r) => ({
@@ -238,9 +239,9 @@ export default function JobDetailScreen() {
           <Text style={styles.headerJobNum}>{job.job_number}</Text>
           <Text style={styles.headerClient}>{job.client}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: jobStatusConfig.bg }]}>
-          <View style={[styles.statusDot, { backgroundColor: jobStatusConfig.dot }]} />
-          <Text style={[styles.statusText, { color: jobStatusConfig.text }]}>{jobStatusConfig.label}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
+          <View style={[styles.statusDot, { backgroundColor: sc.dot }]} />
+          <Text style={[styles.statusText, { color: sc.text }]}>{sc.label}</Text>
         </View>
       </View>
 
@@ -422,15 +423,6 @@ function RunTally({ label, value, color }: { label: string; value: number | stri
   );
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E', dot: '#22C55E' };
-    case 'completed': return { label: 'COMPLETE',  bg: '#1A1F2E', text: '#60A5FA', dot: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary, dot: Colors.primary };
-    case 'draft':     return { label: 'DRAFT',     bg: '#1F1A0D', text: '#F59E0B', dot: '#F59E0B' };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
-  }
-}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },

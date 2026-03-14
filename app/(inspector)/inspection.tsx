@@ -124,7 +124,7 @@ export default function InspectionScreen() {
         supabase.from('jobs').select('*').eq('id', jobId).single(),
       ]);
 
-      const j = localJob ?? jobFromSupabase.data;
+      const j = localJob ?? (jobFromSupabase.data as Job | null);
       setJob(j);
 
       const session = sessionRes.data.session;
@@ -135,7 +135,7 @@ export default function InspectionScreen() {
           getRun(existingRunId),
           supabase.from('inspection_runs').select('*').eq('id', existingRunId).single(),
         ]);
-        currentRun = localRun ?? remoteRunRes.data;
+        currentRun = localRun ?? (remoteRunRes.data as InspectionRun | null);
       } else {
         if (!session?.user) {
           router.replace('/(auth)/login');
@@ -188,7 +188,7 @@ export default function InspectionScreen() {
             .eq('run_id', currentRun.id)
             .order('joint_number', { ascending: true })
             .limit(500);
-          if (remoteJoints) setJoints(remoteJoints);
+          if (remoteJoints) setJoints(remoteJoints as Joint[]);
           const t = remoteJoints?.reduce((acc: any, j: any) => ({
             total_joints: acc.total_joints + 1,
             accepted: acc.accepted + (j.result === 'PASS' ? 1 : 0),

@@ -68,9 +68,13 @@ export default function ProfileScreen() {
         supabase.from('users').select('*').eq('id', authUser.id).single(),
         supabase.from('qualifications').select('*').eq('inspector_id', authUser.id).order('expiry_date', { ascending: true }),
       ]);
-      if (profileRes.data) setUser(profileRes.data);
+      if (profileRes.data) setUser(profileRes.data as User);
       if (qualsRes.data) {
-        setQualifications(qualsRes.data.map(q => ({
+        const quals = qualsRes.data as Array<{
+          id: string; inspector_id: string; cert_type: string; cert_number: string;
+          issued_date: string; expiry_date: string; document_url: string | null;
+        }>;
+        setQualifications(quals.map(q => ({
           ...q,
           days_until_expiry: differenceInDays(new Date(q.expiry_date), new Date()),
           is_expired: new Date(q.expiry_date) < new Date(),

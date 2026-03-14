@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import { saveJob, getJobs } from '../../lib/db/jobs';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
@@ -20,15 +21,6 @@ function PlusIcon() {
   );
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E',       dot: '#22C55E' };
-    case 'completed': return { label: 'COMPLETE',  bg: '#1A1F2E', text: '#60A5FA',       dot: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary,  dot: Colors.primary };
-    case 'draft':     return { label: 'DRAFT',     bg: '#1F1A0D', text: '#F59E0B',       dot: '#F59E0B' };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
-  }
-}
 
 function categoryLabel(cat: string) {
   if (cat === 'DRILL_STRING') return 'Drill String';
@@ -57,8 +49,9 @@ export default function JobsScreen() {
       if (!session?.user) { router.replace('/(auth)/login'); return; }
       const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
       if (data) {
-        await Promise.all(data.map(job => saveJob(job)));
-        setJobs(data);
+        const jobs = data as Job[];
+        await Promise.all(jobs.map(job => saveJob(job)));
+        setJobs(jobs);
       }
     } catch (_) {
       // offline
@@ -110,7 +103,7 @@ export default function JobsScreen() {
   }, [jobs, search]);
 
   function renderJob({ item }: { item: Job }) {
-    const s = statusConfig(item.status);
+    const s = jobStatusConfig(item.status);
     return (
       <TouchableOpacity
         style={styles.jobCard}

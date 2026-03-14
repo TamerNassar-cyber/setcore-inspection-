@@ -1,6 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupportedStorage } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
+import type { Database } from '../types/supabase';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -12,7 +13,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Use localStorage on web, AsyncStorage on native
-let storage: any;
+let storage: SupportedStorage;
 if (Platform.OS === 'web') {
   storage = {
     getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
@@ -24,7 +25,7 @@ if (Platform.OS === 'web') {
   storage = AsyncStorage;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage,
     autoRefreshToken: true,

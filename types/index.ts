@@ -1,4 +1,4 @@
-import type { StandardCode, InspectionResult, DefectType, PipeCategory } from '../constants/standards';
+import type { InspectionResult, DefectType } from '../constants/standards';
 
 export type UserRole = 'inspector' | 'supervisor' | 'management' | 'client';
 
@@ -8,8 +8,8 @@ export interface User {
   full_name: string;
   role: UserRole;
   company: string;
-  phone?: string;
-  avatar_url?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface Qualification {
@@ -19,7 +19,7 @@ export interface Qualification {
   cert_number: string;
   issued_date: string;
   expiry_date: string;
-  document_url?: string;
+  document_url?: string | null;
   is_expired: boolean;
   days_until_expiry: number;
 }
@@ -34,13 +34,13 @@ export interface Job {
   well: string;
   field?: string;
   country: string;
-  standard: StandardCode;
-  pipe_category: PipeCategory;
+  standard: string;
+  pipe_category: string;
   status: JobStatus;
   created_by: string;
   assigned_inspectors: string[];
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
   notes?: string;
 }
 

@@ -7,6 +7,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import Svg, { Path } from 'react-native-svg';
@@ -40,14 +41,6 @@ interface ClientJob {
   run_count: number;
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E', dot: '#22C55E' };
-    case 'completed': return { label: 'COMPLETE',  bg: '#1A1F2E', text: '#60A5FA', dot: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary, dot: Colors.primary };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
-  }
-}
 
 export default function ClientPortal() {
   const [jobs, setJobs] = useState<ClientJob[]>([]);
@@ -152,7 +145,7 @@ export default function ClientPortal() {
   }
 
   function renderJob({ item }: { item: ClientJob }) {
-    const sc = statusConfig(item.status);
+    const sc = jobStatusConfig(item.status);
     const passRate = item.total_joints > 0
       ? Math.round((item.accepted / item.total_joints) * 100)
       : null;
@@ -244,7 +237,7 @@ export default function ClientPortal() {
 }
 
 function JobReportModal({ job, onClose }: { job: ClientJob; onClose: () => void }) {
-  const sc = statusConfig(job.status);
+  const sc = jobStatusConfig(job.status);
   const passRate = job.total_joints > 0
     ? Math.round((job.accepted / job.total_joints) * 100)
     : 0;

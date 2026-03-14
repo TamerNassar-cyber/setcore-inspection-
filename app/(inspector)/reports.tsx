@@ -7,6 +7,7 @@ import {
 import { useFocusEffect, router } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import Svg, { Path } from 'react-native-svg';
@@ -14,6 +15,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { buildReportHtml } from '../../lib/pdf/reportTemplate';
+import type { Job, InspectionRun } from '../../types';
 
 function XIcon() {
   return (
@@ -77,9 +79,10 @@ export default function ReportsScreen() {
       supabase.from('jobs').select('*').order('created_at', { ascending: false }),
     ]);
     const role = profileRes.data?.role ?? 'inspector';
+    const allJobs = (allJobsRes.data ?? []) as Job[];
     const jobsData = role === 'inspector'
-      ? (allJobsRes.data ?? []).filter((j: any) => j.created_by === userId)
-      : (allJobsRes.data ?? []);
+      ? allJobs.filter(j => j.created_by === userId)
+      : allJobs;
     if (jobsData.length === 0) { setJobs([]); return; }
 
     const jobIds = jobsData.map(j => j.id);
@@ -90,8 +93,8 @@ export default function ReportsScreen() {
       supabase.from('users').select('id,full_name'),
     ]);
 
-    const allRuns = runsRes.data ?? [];
-    const userMap = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]));
+    const allRuns = (runsRes.data ?? []) as InspectionRun[];
+    const userMap = new Map((usersRes.data ?? []).map(u => [u.id, u.full_name]));
     const runIds = allRuns.map(r => r.id);
 
     // Load joints and defects for all runs in 2 more queries
@@ -174,7 +177,7 @@ export default function ReportsScreen() {
     const totalReject = item.runs.reduce((a, r) => a + r.rejected, 0);
     const totalFt = item.runs.reduce((a, r) => a + r.total_length_ft, 0);
     const totalDefects = item.runs.reduce((a, r) => a + r.defects.length, 0);
-    const sc = statusConfig(item.status);
+    const sc = jobStatusConfig(item.status);
 
     return (
       <TouchableOpacity style={styles.reportCard} onPress={() => setSelectedJob(item)} activeOpacity={0.75}>
@@ -537,14 +540,6 @@ function formatLocation(code: string) {
   return map[code] ?? code;
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',   bg: '#0D2B1A', text: '#22C55E', dot: '#22C55E' };
-    case 'completed': return { label: 'COMPLETE', bg: '#1A1F2E', text: '#60A5FA', dot: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED', bg: '#1E1208', text: Colors.primary, dot: Colors.primary };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
-  }
-}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0F0F0F' },

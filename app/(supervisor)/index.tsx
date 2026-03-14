@@ -6,9 +6,11 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { Colors } from '../../constants/colors';
+import { jobStatusConfig } from '../../constants/statusConfig';
 import { supabase } from '../../lib/supabase';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import Svg, { Path } from 'react-native-svg';
+import type { Job } from '../../types';
 
 function LogOutIcon() {
   return (
@@ -45,15 +47,6 @@ interface JobRow {
   defect_count: number;
 }
 
-function statusConfig(status: string) {
-  switch (status) {
-    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E', dot: '#22C55E' };
-    case 'completed': return { label: 'FOR REVIEW', bg: '#1A1F2E', text: '#60A5FA', dot: '#60A5FA' };
-    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary, dot: Colors.primary };
-    case 'draft':     return { label: 'DRAFT',     bg: '#1F1A0D', text: '#F59E0B', dot: '#F59E0B' };
-    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
-  }
-}
 
 const FILTERS: { key: FilterStatus; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -88,7 +81,7 @@ export default function SupervisorDashboard() {
         setUserRole(profileRes.data.role);
       }
 
-      const jobsData = jobsRes.data;
+      const jobsData = jobsRes.data as Job[] | null;
       if (!jobsData) return;
 
       const userMap = new Map((allUsersRes.data ?? []).map(u => [u.id, u.full_name]));
@@ -180,7 +173,7 @@ export default function SupervisorDashboard() {
   }, { all: 0, completed: 0, active: 0, approved: 0 }), [jobs]);
 
   function renderJob({ item }: { item: JobRow }) {
-    const s = statusConfig(item.status);
+    const s = jobStatusConfig(item.status);
     const isPendingReview = item.status === 'completed';
     return (
       <TouchableOpacity
