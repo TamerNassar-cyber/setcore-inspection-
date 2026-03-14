@@ -82,10 +82,10 @@ export default function ClientPortal() {
       }
 
       const allRunIds = (runsRes.data ?? []).map(r => r.id);
-      const { data: allJointsData } = allRunIds.length > 0
+      const jointsRes = allRunIds.length > 0
         ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', allRunIds)
-        : { data: [] };
-      const allJoints = (allJointsData ?? []) as any[];
+        : { data: null };
+      const allJoints = jointsRes.data ?? [];
 
       const jointsByRun = new Map<string, any[]>();
       for (const j of allJoints) {

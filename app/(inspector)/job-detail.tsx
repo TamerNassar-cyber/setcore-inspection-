@@ -90,26 +90,26 @@ export default function JobDetailScreen() {
       const runIds = runsData.map((r: any) => r.id);
 
       // Round 2: joints (needs run IDs from above)
-      const { data: allJointsData } = runIds.length > 0
+      const jointsRes = runIds.length > 0
         ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', runIds)
-        : { data: [] };
-      const allJoints = (allJointsData ?? []) as any[];
+        : { data: null };
+      const allJoints = jointsRes.data ?? [];
 
       // Round 3: defects (needs joint IDs from above)
-      const jointIds = allJoints.map((j: any) => j.id);
-      const { data: allDefectsData } = jointIds.length > 0
+      const jointIds = allJoints.map(j => j.id);
+      const defectsRes = jointIds.length > 0
         ? await supabase.from('defects').select('id,joint_id').in('joint_id', jointIds)
-        : { data: [] };
+        : { data: null };
 
       // Build Maps and enrich in memory
-      const jointsByRun = new Map<string, any[]>();
+      const jointsByRun = new Map<string, typeof allJoints>();
       for (const j of allJoints) {
         const arr = jointsByRun.get(j.run_id) ?? [];
         arr.push(j);
         jointsByRun.set(j.run_id, arr);
       }
       const defectCountByJoint = new Map<string, number>();
-      for (const d of (allDefectsData ?? []) as any[]) {
+      for (const d of (defectsRes.data ?? [])) {
         defectCountByJoint.set(d.joint_id, (defectCountByJoint.get(d.joint_id) ?? 0) + 1);
       }
 

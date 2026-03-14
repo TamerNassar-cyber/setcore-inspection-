@@ -98,26 +98,27 @@ export default function ReportsScreen() {
     const runIds = allRuns.map(r => r.id);
 
     // Load joints and defects for all runs in 2 more queries
-    const { data: allJointsData } = runIds.length > 0
+    const jointsRes = runIds.length > 0
       ? await supabase.from('joints').select('id,run_id,result,length').in('run_id', runIds)
-      : { data: [] };
-    const allJoints = (allJointsData ?? []) as any[];
+      : { data: null };
+    const allJoints = jointsRes.data ?? [];
 
     const jointIds = allJoints.map(j => j.id);
-    const { data: allDefectsData } = jointIds.length > 0
+    const defectsRes = jointIds.length > 0
       ? await supabase.from('defects').select('id,joint_id,defect_type,location,severity,description').in('joint_id', jointIds)
-      : { data: [] };
+      : { data: null };
 
     // Build lookup maps for O(1) enrichment
-    const jointsByRun = new Map<string, any[]>();
+    const jointsByRun = new Map<string, typeof allJoints>();
     for (const j of allJoints) {
       const arr = jointsByRun.get(j.run_id) ?? [];
       arr.push(j);
       jointsByRun.set(j.run_id, arr);
     }
 
+    const allDefects = defectsRes.data ?? [];
     const defectsByJoint = new Map<string, ReportDefect[]>();
-    for (const d of (allDefectsData ?? []) as any[]) {
+    for (const d of allDefects) {
       const arr = defectsByJoint.get(d.joint_id) ?? [];
       arr.push(d as ReportDefect);
       defectsByJoint.set(d.joint_id, arr);
