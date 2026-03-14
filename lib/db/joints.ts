@@ -83,3 +83,16 @@ export async function markJointSynced(id: string): Promise<void> {
   if (!db) return;
   await db.runAsync('UPDATE joints SET synced = 1 WHERE id = ?', [id]);
 }
+
+export async function getUnsyncedDefects(): Promise<Defect[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows: any[] = await db.getAllAsync('SELECT * FROM defects WHERE synced = 0');
+  return rows.map((r: any) => ({ ...r, synced: false }));
+}
+
+export async function markDefectSynced(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync('UPDATE defects SET synced = 1 WHERE id = ?', [id]);
+}

@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View, Text, StyleSheet } from 'react-native';
 import { initDb } from '../lib/db/schema';
 import { supabase } from '../lib/supabase';
+import { useSyncOnFocus } from '../lib/sync/useSyncOnFocus';
 
 function isResetPasswordUrl() {
   if (Platform.OS !== 'web') return false;
@@ -11,6 +12,9 @@ function isResetPasswordUrl() {
 }
 
 export default function RootLayout() {
+  // Background sync — flushes unsynced joints/defects on every app focus
+  const sync = useSyncOnFocus();
+
   useEffect(() => {
     initDb().catch(console.error);
 
@@ -50,6 +54,8 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const pendingTotal = sync.pendingJoints + sync.pendingDefects;
+
   return (
     <>
       <StatusBar style="light" />
@@ -61,6 +67,36 @@ export default function RootLayout() {
         <Stack.Screen name="(client)" />
         <Stack.Screen name="reset-password" />
       </Stack>
+
+      {/* Persistent sync failure banner — only visible when records are stuck */}
+      {!sync.syncing && pendingTotal > 0 && (
+        <View style={styles.syncBanner} pointerEvents="none">
+          <Text style={styles.syncBannerText}>
+            ↑ {pendingTotal} record{pendingTotal !== 1 ? 's' : ''} pending upload — will retry when connected
+          </Text>
+        </View>
+      )}
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  syncBanner: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1F1A0D',
+    borderTopWidth: 1,
+    borderTopColor: '#F59E0B',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  syncBannerText: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+});
