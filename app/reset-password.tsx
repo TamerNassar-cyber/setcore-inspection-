@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, Alert, TouchableOpacity, TextInput,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Colors } from '../constants/colors';
 import SetcoreLogo from '../components/shared/SetcoreLogo';

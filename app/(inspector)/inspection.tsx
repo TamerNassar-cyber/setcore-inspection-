@@ -10,7 +10,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { getJob, saveRun, getRun } from '../../lib/db/jobs';
-import { saveJoint, getJointsByRun, getTally } from '../../lib/db/joints';
+import { saveJoint, saveDefect as saveDefectLocal, getJointsByRun, getTally } from '../../lib/db/joints';
 import type { Job, InspectionRun, Joint } from '../../types';
 import type { InspectionResult } from '../../constants/standards';
 import { DEFECT_TYPES, DEFECT_CRITERIA } from '../../constants/standards';
@@ -362,15 +362,19 @@ export default function InspectionScreen() {
     const defect = {
       id: uuidv4(),
       joint_id: pendingJointId,
-      defect_type: defectType,
-      location: defectLocation || null,
-      severity: defectSeverity,
-      description: defectDescription || null,
-      photo_url: photoUrl ?? null,
+      defect_type: defectType as any,
+      location: defectLocation || undefined,
+      severity: defectSeverity as 'minor' | 'major' | 'critical',
+      description: defectDescription || undefined,
+      photo_url: photoUrl,
+      synced: false,
     };
 
+    // Save locally first so defects survive offline
+    saveDefectLocal(defect).catch((e) => console.warn('Defect local save failed:', e));
+
     // Fire-and-forget — never block UI on network write
-    supabase.from('defects').insert(defect).then(undefined, (e) => console.warn('Defect sync failed:', e));
+    supabase.from('defects').insert({ ...defect, synced: undefined }).then(undefined, (e) => console.warn('Defect sync failed:', e));
 
     setSavingDefect(false);
     resetDefectForm();

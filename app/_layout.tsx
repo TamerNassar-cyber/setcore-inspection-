@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
 import { initDb } from '../lib/db/schema';
 import { supabase } from '../lib/supabase';
-import { router } from 'expo-router';
 
 function isResetPasswordUrl() {
   if (Platform.OS !== 'web') return false;

@@ -82,20 +82,6 @@ export default function ProfileScreen() {
     }
   }
 
-  async function loadQuals(userId: string) {
-    const { data: quals } = await supabase
-      .from('qualifications').select('*')
-      .eq('inspector_id', userId)
-      .order('expiry_date', { ascending: true });
-    if (quals) {
-      setQualifications(quals.map(q => ({
-        ...q,
-        days_until_expiry: differenceInDays(new Date(q.expiry_date), new Date()),
-        is_expired: new Date(q.expiry_date) < new Date(),
-      })));
-    }
-  }
-
   useFocusEffect(useCallback(() => { loadProfile(); }, []));
 
   function handleSignOut() {
@@ -148,7 +134,7 @@ export default function ProfileScreen() {
 
       setShowCertModal(false);
       setCertType(''); setCertNumber(''); setIssuedDate(''); setExpiryDate('');
-      await loadQuals(userId);
+      await loadProfile();
     } catch (_) {
       Alert.alert('Error', 'Failed to save certification. Please try again.');
     } finally {

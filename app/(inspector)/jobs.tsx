@@ -10,7 +10,7 @@ import { saveJob, getJobs } from '../../lib/db/jobs';
 import SetcoreLogo from '../../components/shared/SetcoreLogo';
 import type { Job } from '../../types';
 import { format } from 'date-fns';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 function PlusIcon() {
   return (
@@ -22,10 +22,11 @@ function PlusIcon() {
 
 function statusConfig(status: string) {
   switch (status) {
-    case 'active': return { label: 'ACTIVE', bg: '#0D2B1A', text: '#22C55E', dot: '#22C55E' };
-    case 'completed': return { label: 'COMPLETE', bg: '#1A1F2E', text: '#60A5FA', dot: '#60A5FA' };
-    case 'draft': return { label: 'DRAFT', bg: '#1F1A0D', text: '#F59E0B', dot: '#F59E0B' };
-    default: return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
+    case 'active':    return { label: 'ACTIVE',    bg: '#0D2B1A', text: '#22C55E',       dot: '#22C55E' };
+    case 'completed': return { label: 'COMPLETE',  bg: '#1A1F2E', text: '#60A5FA',       dot: '#60A5FA' };
+    case 'approved':  return { label: 'APPROVED',  bg: '#1E1208', text: Colors.primary,  dot: Colors.primary };
+    case 'draft':     return { label: 'DRAFT',     bg: '#1F1A0D', text: '#F59E0B',       dot: '#F59E0B' };
+    default:          return { label: status.toUpperCase(), bg: '#1A1A1A', text: '#9CA3AF', dot: '#9CA3AF' };
   }
 }
 

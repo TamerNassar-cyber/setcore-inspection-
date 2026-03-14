@@ -349,7 +349,7 @@ export default function ManagementDashboard() {
                       <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
                         <Text style={[styles.statusText, { color: sc.text }]}>{sc.label}</Text>
                       </View>
-                      <Text style={styles.recentDate}>{format(new Date(j.updated_at), 'dd MMM')}</Text>
+                      <Text style={styles.recentDate}>{j.updated_at ? format(new Date(j.updated_at), 'dd MMM') : '—'}</Text>
                     </View>
                   </TouchableOpacity>
                 );

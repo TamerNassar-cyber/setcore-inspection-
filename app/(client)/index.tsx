@@ -64,7 +64,7 @@ export default function ClientPortal() {
       const { data: profile } = await supabase
         .from('users').select('full_name,company').eq('id', session.user.id).single();
 
-      const company = (profile as any)?.company ?? '';
+      const company = profile?.company ?? '';
       setCompanyName(company);
 
       if (!company) { setJobs([]); return; }
